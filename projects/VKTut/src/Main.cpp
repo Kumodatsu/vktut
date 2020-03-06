@@ -2,6 +2,7 @@
 
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
 
 int main(int argc, char** argv) {
     if (!glfwInit()) {
@@ -19,6 +20,10 @@ int main(int argc, char** argv) {
     const glm::vec3 v(2.0f, 1.0f, 0.0f);
     const glm::vec3 w = u + v;
     std::cout << w.y << std::endl;
+
+    uint32_t extensionCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    std::cout << extensionCount << " extensions supported" << std::endl;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();

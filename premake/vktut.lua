@@ -21,10 +21,15 @@ project "VKTut"
     includedirs {
         "../projects/%{prj.name}/src",
         "../dependencies/glfw/include",
-        "../dependencies/glm"
+        "../dependencies/glm",
+        "../dependencies/vulkan/Include"
+    }
+    libdirs {
+        "../dependencies/vulkan/Lib"
     }
     links {
-        "GLFW"
+        "GLFW",
+        "vulkan-1"
     }
     filter "configurations:Debug"
         runtime  "Debug"
