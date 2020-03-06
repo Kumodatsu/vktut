@@ -11,7 +11,8 @@ project "VKTut"
     targetdir     "../output/bin/%{cfg.buildcfg}/%{prj.name}"
     objdir        "../output/obj/%{cfg.buildcfg}/%{prj.name}"
     defines {
-        "GLFW_INCLUDE_NONE"
+        "GLFW_INCLUDE_NONE",
+        "GLM_FORCE_RADIANS"
     }
     files {
         "../projects/%{prj.name}/src/**.h",
