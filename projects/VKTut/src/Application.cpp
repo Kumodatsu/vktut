@@ -65,17 +65,6 @@ namespace Kumo {
         const char** glfw_extensions =
             glfwGetRequiredInstanceExtensions(&n_glfw_extensions);
 
-        const VkInstanceCreateInfo create_info {
-            VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            nullptr,
-            0,
-            &app_info,
-            0,
-            nullptr,
-            n_glfw_extensions,
-            glfw_extensions
-        };
-
         UInt32 n_extensions = 0;
         vkEnumerateInstanceExtensionProperties(nullptr, &n_extensions,
             nullptr);
@@ -100,8 +89,57 @@ namespace Kumo {
             }
         }
 
+        std::vector<const char*> layers;
+
+        KUMO_DEBUG_ONLY {
+            const std::vector<const char*> validation_layers {
+                "VK_LAYER_KHRONOS_validation"
+            };
+            if (!AreLayersSupported(validation_layers)) {
+                throw std::runtime_error(
+                    "Validation layers are not available."
+                );
+            }
+            layers.insert(layers.end(), validation_layers.begin(),
+                validation_layers.end());
+        }
+
+        const VkInstanceCreateInfo create_info {
+            VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            nullptr,
+            0,
+            &app_info,
+            static_cast<UInt32>(layers.size()),
+            layers.data(),
+            n_glfw_extensions,
+            glfw_extensions
+        };
+
         if (vkCreateInstance(&create_info, nullptr, &m_instance) != VK_SUCCESS)
             throw std::runtime_error("Failed to create Vulkan instance.");
+    }
+
+    bool Application::AreLayersSupported(
+            const std::vector<const char*>& layers) const {
+        UInt32 n_available_layers;
+        vkEnumerateInstanceLayerProperties(&n_available_layers, nullptr);
+        std::vector<VkLayerProperties> available_layers(n_available_layers);
+        vkEnumerateInstanceLayerProperties(&n_available_layers,
+            available_layers.data());
+
+        for (const char* layer_name : layers) {
+            const auto r = std::find_if(
+                available_layers.begin(),
+                available_layers.end(),
+                [layer_name] (VkLayerProperties layer) {
+                    return strcmp(layer_name, layer.layerName) == 0;
+                }
+            );
+            if (r == available_layers.end())
+                return false;
+        }
+
+        return true;
     }
 
 }

@@ -25,6 +25,9 @@ namespace Kumo {
         void Cleanup();
 
         void CreateInstance();
+
+        bool AreLayersSupported(
+            const std::vector<const char*>& layers) const;
     };
 
 }
