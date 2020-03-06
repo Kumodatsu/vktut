@@ -20,7 +20,8 @@ project "VKTut"
     }
     includedirs {
         "../projects/%{prj.name}/src",
-        "../dependencies/glfw/include"
+        "../dependencies/glfw/include",
+        "../dependencies/glm"
     }
     links {
         "GLFW"

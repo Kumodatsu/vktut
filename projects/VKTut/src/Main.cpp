@@ -1,6 +1,7 @@
 #include "Common.hpp"
 
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 int main(int argc, char** argv) {
     if (!glfwInit()) {
@@ -13,6 +14,11 @@ int main(int argc, char** argv) {
         glfwTerminate();
         return -1;
     }
+
+    const glm::vec3 u(0.0f, 1.0f, 2.0f);
+    const glm::vec3 v(2.0f, 1.0f, 0.0f);
+    const glm::vec3 w = u + v;
+    std::cout << w.y << std::endl;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
