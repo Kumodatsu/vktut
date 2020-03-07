@@ -8,6 +8,9 @@ project "VKTut"
     pchheader     "Common.hpp"
     pchsource     "../projects/VKTut/src/Common.cpp"
     warnings      "extra"
+    disablewarnings {
+        26812
+    }
     targetdir     "../output/bin/%{cfg.buildcfg}/%{prj.name}"
     objdir        "../output/obj/%{cfg.buildcfg}/%{prj.name}"
     defines {
