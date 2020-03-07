@@ -27,6 +27,8 @@ namespace Kumo {
 
         VkInstance       m_instance;
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
+        VkDevice         m_device;
+        VkQueue          m_graphics_queue; // implicitly destroyed with logical device
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -39,6 +41,7 @@ namespace Kumo {
 
         void CreateInstance();
         void SelectPhysicalDevice();
+        void CreateLogicalDevice();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;

@@ -3,12 +3,18 @@
 
 namespace Kumo {
 
+    static const std::vector<const char*> ValidationLayers {
+        "VK_LAYER_KHRONOS_validation"
+    };
+
     Application::Application()
         : m_window(nullptr)
         , m_instance()
         , m_debug_messenger()
         , m_debug_messenger_create_info()
         , m_physical_device(VK_NULL_HANDLE)
+        , m_device()
+        , m_graphics_queue()
     { }
 
     Application::~Application() {
@@ -54,6 +60,7 @@ namespace Kumo {
         CreateInstance();
         KUMO_DEBUG_ONLY SetupDebugMessenger();
         SelectPhysicalDevice();
+        CreateLogicalDevice();
     }
 
     void Application::RunLoop() {
@@ -63,6 +70,7 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        vkDestroyDevice(m_device, nullptr);
         KUMO_DEBUG_ONLY {
             const auto vkDestroyDebugUtilsMessengerEXT =
                 reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
@@ -126,16 +134,13 @@ namespace Kumo {
         void* p_next = nullptr;
 
         KUMO_DEBUG_ONLY {
-            const std::vector<const char*> validation_layers {
-                "VK_LAYER_KHRONOS_validation"
-            };
-            if (!AreLayersSupported(validation_layers)) {
+            if (!AreLayersSupported(ValidationLayers)) {
                 throw std::runtime_error(
                     "Validation layers are not available."
                 );
             }
-            layers.insert(layers.end(), validation_layers.begin(),
-                validation_layers.end());
+            layers.insert(layers.end(), ValidationLayers.begin(),
+                ValidationLayers.end());
 
             p_next = &m_debug_messenger_create_info;
         }
@@ -174,6 +179,47 @@ namespace Kumo {
         }
         
         throw std::runtime_error("Found no suitable GPU.");
+    }
+
+    void Application::CreateLogicalDevice() {
+        const QueueFamilyIndices queue_family_indices =
+            FindQueueFamilies(m_physical_device);
+        const float queue_priorities[] { 1.0f };
+        const VkDeviceQueueCreateInfo queue_create_info {
+            VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            nullptr,
+            0,
+            queue_family_indices.GraphicsFamily.value(),
+            1,
+            queue_priorities
+        };
+        const VkPhysicalDeviceFeatures features { };
+        std::vector<const char*> layers;
+        KUMO_DEBUG_ONLY {
+            // Validation layers are assumed to be available
+            // as their existance has been checked during instance
+            // creation
+            layers.insert(layers.end(), ValidationLayers.begin(),
+                ValidationLayers.end());
+        }
+        const VkDeviceCreateInfo device_create_info {
+            VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            nullptr,
+            0,
+            1,
+            &queue_create_info,
+            static_cast<UInt32>(layers.size()),
+            layers.data(),
+            0,
+            nullptr,
+            &features
+        };
+        if (vkCreateDevice(m_physical_device, &device_create_info, nullptr,
+                &m_device) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create logical device.");
+        }
+        vkGetDeviceQueue(m_device, queue_family_indices.GraphicsFamily.value(),
+            0, &m_graphics_queue);
     }
 
     bool Application::AreLayersSupported(
