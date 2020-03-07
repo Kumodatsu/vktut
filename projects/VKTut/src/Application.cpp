@@ -8,6 +8,7 @@ namespace Kumo {
         , m_instance()
         , m_debug_messenger()
         , m_debug_messenger_create_info()
+        , m_physical_device(VK_NULL_HANDLE)
     { }
 
     Application::~Application() {
@@ -52,6 +53,7 @@ namespace Kumo {
         };
         CreateInstance();
         KUMO_DEBUG_ONLY SetupDebugMessenger();
+        SelectPhysicalDevice();
     }
 
     void Application::RunLoop() {
@@ -153,6 +155,27 @@ namespace Kumo {
             throw std::runtime_error("Failed to create Vulkan instance.");
     }
 
+    void Application::SelectPhysicalDevice() {
+        UInt32 n_devices;
+        vkEnumeratePhysicalDevices(m_instance, &n_devices, nullptr);
+        if (n_devices == 0)
+            throw std::runtime_error("Found no GPU with Vulkan support.");
+        std::vector<VkPhysicalDevice> devices(n_devices);
+        vkEnumeratePhysicalDevices(m_instance, &n_devices, devices.data());
+        for (const auto& device : devices) {
+            VkPhysicalDeviceProperties properties;
+            VkPhysicalDeviceFeatures   features;
+            if (IsPhysicalDeviceSuitable(device, properties, features)) {
+                m_physical_device = device;
+                std::cout << "Using device:" << std::endl
+                    << "\t" << properties.deviceName << std::endl;
+                return;
+            }
+        }
+        
+        throw std::runtime_error("Found no suitable GPU.");
+    }
+
     void Application::SetupDebugMessenger() {
         auto vkCreateDebugUtilsMessengerEXT =
             reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
@@ -206,6 +229,14 @@ namespace Kumo {
             VK_EXT_DEBUG_UTILS_EXTENSION_NAME
         );
         return required_extensions;
+    }
+
+    bool Application::IsPhysicalDeviceSuitable(const VkPhysicalDevice& device,
+            VkPhysicalDeviceProperties& properties,
+            VkPhysicalDeviceFeatures& features) const {
+        vkGetPhysicalDeviceProperties(device, &properties);
+        vkGetPhysicalDeviceFeatures(device, &features);
+        return true;
     }
 
     static std::string VulkanDebugMessageTypeName(

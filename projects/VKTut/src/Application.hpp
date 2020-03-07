@@ -17,7 +17,8 @@ namespace Kumo {
 
         GLFWwindow* m_window;
 
-        VkInstance  m_instance;
+        VkInstance       m_instance;
+        VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -29,12 +30,16 @@ namespace Kumo {
         void Cleanup();
 
         void CreateInstance();
+        void SelectPhysicalDevice();
 
         void SetupDebugMessenger();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
         std::vector<const char*> GetRequiredExtensions() const;
+        bool IsPhysicalDeviceSuitable(const VkPhysicalDevice& device,
+            VkPhysicalDeviceProperties& properties,
+            VkPhysicalDeviceFeatures& features) const;
 
         inline static constexpr VkDebugUtilsMessageSeverityFlagBitsEXT
             VulkanLogSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
