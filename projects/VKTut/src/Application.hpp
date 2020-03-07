@@ -5,6 +5,14 @@
 
 namespace Kumo {
 
+    struct QueueFamilyIndices {
+        std::optional<UInt32> GraphicsFamily = std::nullopt;
+
+        inline bool IsComplete() const {
+            return GraphicsFamily.has_value();
+        }
+    };
+
     class Application {
     public:
         Application();
@@ -32,14 +40,16 @@ namespace Kumo {
         void CreateInstance();
         void SelectPhysicalDevice();
 
-        void SetupDebugMessenger();
-
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
         std::vector<const char*> GetRequiredExtensions() const;
         bool IsPhysicalDeviceSuitable(const VkPhysicalDevice& device,
             VkPhysicalDeviceProperties& properties,
             VkPhysicalDeviceFeatures& features) const;
+        QueueFamilyIndices FindQueueFamilies(const VkPhysicalDevice& device)
+            const;
+
+        void SetupDebugMessenger();
 
         inline static constexpr VkDebugUtilsMessageSeverityFlagBitsEXT
             VulkanLogSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;

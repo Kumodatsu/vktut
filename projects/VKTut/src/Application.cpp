@@ -176,26 +176,6 @@ namespace Kumo {
         throw std::runtime_error("Found no suitable GPU.");
     }
 
-    void Application::SetupDebugMessenger() {
-        auto vkCreateDebugUtilsMessengerEXT =
-            reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-                vkGetInstanceProcAddr(
-                    m_instance,
-                    "vkCreateDebugUtilsMessengerEXT"
-                )
-            );
-        if (!vkCreateDebugUtilsMessengerEXT) {
-            throw std::runtime_error(
-                "Function vkCreateDebugUtilsMessengerEXT failed to load."
-            );
-        }
-        if (vkCreateDebugUtilsMessengerEXT(m_instance,
-                &m_debug_messenger_create_info, nullptr,
-                &m_debug_messenger) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to setup debug messenger.");
-        }
-    }
-
     bool Application::AreLayersSupported(
             const std::vector<const char*>& layers) const {
         UInt32 n_available_layers;
@@ -236,7 +216,49 @@ namespace Kumo {
             VkPhysicalDeviceFeatures& features) const {
         vkGetPhysicalDeviceProperties(device, &properties);
         vkGetPhysicalDeviceFeatures(device, &features);
-        return true;
+        const QueueFamilyIndices queue_family_indices =
+            FindQueueFamilies(device);
+        return queue_family_indices.IsComplete();
+    }
+
+    QueueFamilyIndices Application::FindQueueFamilies(
+            const VkPhysicalDevice& device) const {
+        QueueFamilyIndices indices;
+        UInt32 n_queue_families;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &n_queue_families,
+            nullptr);
+        std::vector<VkQueueFamilyProperties> queue_families(n_queue_families);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &n_queue_families,
+            queue_families.data());
+        for (UInt32 i = 0; i < n_queue_families; i++) {
+            const auto& queue_family = queue_families[i];
+            if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                indices.GraphicsFamily = i;
+            }
+            if (indices.IsComplete())
+                break;
+        }
+        return indices;
+    }
+
+    void Application::SetupDebugMessenger() {
+        auto vkCreateDebugUtilsMessengerEXT =
+            reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+                vkGetInstanceProcAddr(
+                    m_instance,
+                    "vkCreateDebugUtilsMessengerEXT"
+                )
+            );
+        if (!vkCreateDebugUtilsMessengerEXT) {
+            throw std::runtime_error(
+                "Function vkCreateDebugUtilsMessengerEXT failed to load."
+            );
+        }
+        if (vkCreateDebugUtilsMessengerEXT(m_instance,
+                &m_debug_messenger_create_info, nullptr,
+                &m_debug_messenger) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to setup debug messenger.");
+        }
     }
 
     static std::string VulkanDebugMessageTypeName(
