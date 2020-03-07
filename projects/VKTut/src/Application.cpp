@@ -15,6 +15,7 @@ namespace Kumo {
         , m_physical_device(VK_NULL_HANDLE)
         , m_device()
         , m_graphics_queue()
+        , m_surface()
     { }
 
     Application::~Application() {
@@ -59,6 +60,7 @@ namespace Kumo {
         };
         CreateInstance();
         KUMO_DEBUG_ONLY SetupDebugMessenger();
+        CreateSurface();
         SelectPhysicalDevice();
         CreateLogicalDevice();
     }
@@ -84,6 +86,7 @@ namespace Kumo {
                     nullptr);
             }
         }
+        vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         vkDestroyInstance(m_instance, nullptr);
         glfwDestroyWindow(m_window);
         glfwTerminate();
@@ -158,6 +161,13 @@ namespace Kumo {
 
         if (vkCreateInstance(&create_info, nullptr, &m_instance) != VK_SUCCESS)
             throw std::runtime_error("Failed to create Vulkan instance.");
+    }
+
+    void Application::CreateSurface() {
+        if (glfwCreateWindowSurface(m_instance, m_window, nullptr,
+                &m_surface) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create window surface.");
+        }
     }
 
     void Application::SelectPhysicalDevice() {

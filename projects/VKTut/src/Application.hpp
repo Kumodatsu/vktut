@@ -29,6 +29,7 @@ namespace Kumo {
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
         VkDevice         m_device;
         VkQueue          m_graphics_queue; // implicitly destroyed with logical device
+        VkSurfaceKHR     m_surface;
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -40,6 +41,7 @@ namespace Kumo {
         void Cleanup();
 
         void CreateInstance();
+        void CreateSurface();
         void SelectPhysicalDevice();
         void CreateLogicalDevice();
 
