@@ -14,8 +14,9 @@ namespace Kumo {
         , m_debug_messenger_create_info()
         , m_physical_device(VK_NULL_HANDLE)
         , m_device()
-        , m_graphics_queue()
         , m_surface()
+        , m_graphics_queue()
+        , m_present_queue()
     { }
 
     Application::~Application() {
@@ -195,14 +196,22 @@ namespace Kumo {
         const QueueFamilyIndices queue_family_indices =
             FindQueueFamilies(m_physical_device);
         const float queue_priorities[] { 1.0f };
-        const VkDeviceQueueCreateInfo queue_create_info {
-            VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            nullptr,
-            0,
+        std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
+        std::set<UInt32> unique_families {
             queue_family_indices.GraphicsFamily.value(),
-            1,
-            queue_priorities
+            queue_family_indices.PresentFamily.value()
         };
+        for (UInt32 family_index : unique_families) {
+            const VkDeviceQueueCreateInfo queue_create_info {
+                VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                nullptr,
+                0,
+                family_index,
+                1,
+                queue_priorities
+            };
+            queue_create_infos.push_back(queue_create_info);
+        }
         const VkPhysicalDeviceFeatures features { };
         std::vector<const char*> layers;
         KUMO_DEBUG_ONLY {
@@ -216,8 +225,8 @@ namespace Kumo {
             VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             nullptr,
             0,
-            1,
-            &queue_create_info,
+            static_cast<UInt32>(queue_create_infos.size()),
+            queue_create_infos.data(),
             static_cast<UInt32>(layers.size()),
             layers.data(),
             0,
@@ -230,6 +239,8 @@ namespace Kumo {
         }
         vkGetDeviceQueue(m_device, queue_family_indices.GraphicsFamily.value(),
             0, &m_graphics_queue);
+        vkGetDeviceQueue(m_device, queue_family_indices.PresentFamily.value(),
+            0, &m_present_queue);
     }
 
     bool Application::AreLayersSupported(
@@ -288,9 +299,13 @@ namespace Kumo {
             queue_families.data());
         for (UInt32 i = 0; i < n_queue_families; i++) {
             const auto& queue_family = queue_families[i];
-            if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
                 indices.GraphicsFamily = i;
-            }
+            VkBool32 present_support;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface,
+                &present_support);
+            if (present_support)
+                indices.PresentFamily = i;
             if (indices.IsComplete())
                 break;
         }

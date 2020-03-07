@@ -7,9 +7,11 @@ namespace Kumo {
 
     struct QueueFamilyIndices {
         std::optional<UInt32> GraphicsFamily = std::nullopt;
+        std::optional<UInt32> PresentFamily  = std::nullopt;
 
         inline bool IsComplete() const {
-            return GraphicsFamily.has_value();
+            return GraphicsFamily.has_value()
+                && PresentFamily.has_value();
         }
     };
 
@@ -28,8 +30,11 @@ namespace Kumo {
         VkInstance       m_instance;
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
         VkDevice         m_device;
-        VkQueue          m_graphics_queue; // implicitly destroyed with logical device
         VkSurfaceKHR     m_surface;
+        VkQueue
+            // implicitly destroyed with logical device
+            m_graphics_queue,
+            m_present_queue;
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
