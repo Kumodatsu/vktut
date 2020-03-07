@@ -6,6 +6,8 @@ namespace Kumo {
     Application::Application()
         : m_window(nullptr)
         , m_instance()
+        , m_debug_messenger()
+        , m_debug_messenger_create_info()
     { }
 
     Application::~Application() {
@@ -35,7 +37,21 @@ namespace Kumo {
     }
 
     void Application::InitializeVulkan() {
+        KUMO_DEBUG_ONLY m_debug_messenger_create_info = {
+            VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+            nullptr,
+            0,
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+            VulkanDebugCallback,
+            nullptr
+        };
         CreateInstance();
+        KUMO_DEBUG_ONLY SetupDebugMessenger();
     }
 
     void Application::RunLoop() {
@@ -45,6 +61,19 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        KUMO_DEBUG_ONLY {
+            const auto vkDestroyDebugUtilsMessengerEXT =
+                reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+                    vkGetInstanceProcAddr(
+                        m_instance,
+                        "vkDestroyDebugUtilsMessengerEXT"
+                    )
+                );
+            if (vkDestroyDebugUtilsMessengerEXT) {
+                vkDestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger,
+                    nullptr);
+            }
+        }
         vkDestroyInstance(m_instance, nullptr);
         glfwDestroyWindow(m_window);
         glfwTerminate();
@@ -61,35 +90,38 @@ namespace Kumo {
             VK_API_VERSION_1_1
         };
 
-        UInt32 n_glfw_extensions;
-        const char** glfw_extensions =
-            glfwGetRequiredInstanceExtensions(&n_glfw_extensions);
+        const auto required_extensions = GetRequiredExtensions();
 
-        UInt32 n_extensions = 0;
-        vkEnumerateInstanceExtensionProperties(nullptr, &n_extensions,
-            nullptr);
-        std::vector<VkExtensionProperties> extensions(n_extensions);
-        vkEnumerateInstanceExtensionProperties(nullptr, &n_extensions,
-            extensions.data());
+        UInt32 n_available_extensions = 0;
+        vkEnumerateInstanceExtensionProperties(nullptr,
+            &n_available_extensions, nullptr);
+        std::vector<VkExtensionProperties> available_extensions(
+            n_available_extensions);
+        vkEnumerateInstanceExtensionProperties(nullptr,
+            &n_available_extensions, available_extensions.data());
         std::cout << "Available extensions:" << std::endl;
-        for (const auto& extension : extensions)
+        for (const auto& extension : available_extensions)
             std::cout << "\t" << extension.extensionName << std::endl;
 
-        for (UIndex i = 0; i < n_glfw_extensions; i++) {
-            const char* extension_name = glfw_extensions[i];
-            const auto r = std::find_if(extensions.begin(), extensions.end(),
+        for (const char* extension_name : required_extensions) {
+            const auto r = std::find_if(
+                available_extensions.begin(),
+                available_extensions.end(),
                 [extension_name] (VkExtensionProperties extension) {
                     return strcmp(extension_name, extension.extensionName) == 0;
                 }
             );
-            if (r == extensions.end()) {
+            if (r == available_extensions.end()) {
                 throw std::runtime_error(
-                    "Not all Vulkan extensions required by GLFW are supported."
+                    std::string("Required Vulkan extension \"")
+                    + extension_name
+                    + "\" is not supported."
                 );
             }
         }
 
         std::vector<const char*> layers;
+        void* p_next = nullptr;
 
         KUMO_DEBUG_ONLY {
             const std::vector<const char*> validation_layers {
@@ -102,6 +134,8 @@ namespace Kumo {
             }
             layers.insert(layers.end(), validation_layers.begin(),
                 validation_layers.end());
+
+            p_next = &m_debug_messenger_create_info;
         }
 
         const VkInstanceCreateInfo create_info {
@@ -111,12 +145,32 @@ namespace Kumo {
             &app_info,
             static_cast<UInt32>(layers.size()),
             layers.data(),
-            n_glfw_extensions,
-            glfw_extensions
+            static_cast<UInt32>(required_extensions.size()),
+            required_extensions.data()
         };
 
         if (vkCreateInstance(&create_info, nullptr, &m_instance) != VK_SUCCESS)
             throw std::runtime_error("Failed to create Vulkan instance.");
+    }
+
+    void Application::SetupDebugMessenger() {
+        auto vkCreateDebugUtilsMessengerEXT =
+            reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+                vkGetInstanceProcAddr(
+                    m_instance,
+                    "vkCreateDebugUtilsMessengerEXT"
+                )
+            );
+        if (!vkCreateDebugUtilsMessengerEXT) {
+            throw std::runtime_error(
+                "Function vkCreateDebugUtilsMessengerEXT failed to load."
+            );
+        }
+        if (vkCreateDebugUtilsMessengerEXT(m_instance,
+                &m_debug_messenger_create_info, nullptr,
+                &m_debug_messenger) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to setup debug messenger.");
+        }
     }
 
     bool Application::AreLayersSupported(
@@ -140,6 +194,45 @@ namespace Kumo {
         }
 
         return true;
+    }
+
+    std::vector<const char*> Application::GetRequiredExtensions() const {
+        UInt32 n_glfw_extensions;
+        const char** glfw_extensions =
+            glfwGetRequiredInstanceExtensions(&n_glfw_extensions);
+        std::vector<const char*> required_extensions(glfw_extensions,
+            glfw_extensions + n_glfw_extensions);
+        KUMO_DEBUG_ONLY required_extensions.push_back(
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+        );
+        return required_extensions;
+    }
+
+    static std::string VulkanDebugMessageTypeName(
+            VkDebugUtilsMessageTypeFlagsEXT type) {
+        switch (type) {
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
+            return "GENERAL";
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
+            return "VALIDATION";
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
+            return "PERFORMANCE";
+        default:
+            return "UNKNOWN";
+        }
+    }
+
+    VKAPI_ATTR VkBool32 VKAPI_CALL Application::VulkanDebugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT      severity,
+        VkDebugUtilsMessageTypeFlagsEXT             type,
+        const VkDebugUtilsMessengerCallbackDataEXT* data,
+        void*
+    ) {
+        if (severity >= VulkanLogSeverity) {
+            std::cerr << "[VULKAN] " << VulkanDebugMessageTypeName(type)
+                << ": " << data->pMessage << std::endl;
+        }
+        return VK_FALSE;
     }
 
 }

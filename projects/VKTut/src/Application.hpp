@@ -19,6 +19,10 @@ namespace Kumo {
 
         VkInstance  m_instance;
 
+        // Debug members
+        VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
+        VkDebugUtilsMessengerEXT           m_debug_messenger;
+
         void InitializeWindow();
         void InitializeVulkan();
         void RunLoop();
@@ -26,8 +30,20 @@ namespace Kumo {
 
         void CreateInstance();
 
+        void SetupDebugMessenger();
+
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
+        std::vector<const char*> GetRequiredExtensions() const;
+
+        inline static constexpr VkDebugUtilsMessageSeverityFlagBitsEXT
+            VulkanLogSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+        static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
+            VkDebugUtilsMessageSeverityFlagBitsEXT      severity,
+            VkDebugUtilsMessageTypeFlagsEXT             type,
+            const VkDebugUtilsMessengerCallbackDataEXT* data,
+            void*
+        );
     };
 
 }
