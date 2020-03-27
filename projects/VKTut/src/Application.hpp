@@ -23,7 +23,7 @@ namespace Kumo {
 
     class Application {
     public:
-        Application();
+        Application() = default;
         ~Application();
 
         void Run();
@@ -44,10 +44,11 @@ namespace Kumo {
             m_graphics_queue,
             m_present_queue;
 
-        VkSwapchainKHR       m_swapchain;
-        std::vector<VkImage> m_swapchain_images; // implicitly destroyed with swapchain
-        VkFormat             m_swapchain_image_format;
-        VkExtent2D           m_swapchain_extent;
+        VkSwapchainKHR           m_swapchain;
+        std::vector<VkImage>     m_swapchain_images; // implicitly destroyed with swapchain
+        std::vector<VkImageView> m_swapchain_image_views;
+        VkFormat                 m_swapchain_image_format;
+        VkExtent2D               m_swapchain_extent;
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -63,6 +64,7 @@ namespace Kumo {
         void SelectPhysicalDevice();
         void CreateLogicalDevice();
         void CreateSwapchain();
+        void CreateSwapchainImageViews();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;

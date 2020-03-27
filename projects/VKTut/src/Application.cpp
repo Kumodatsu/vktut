@@ -11,21 +11,6 @@ namespace Kumo {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
-    Application::Application()
-        : m_window(nullptr)
-        , m_instance()
-        , m_debug_messenger()
-        , m_debug_messenger_create_info()
-        , m_physical_device(VK_NULL_HANDLE)
-        , m_device()
-        , m_surface()
-        , m_queue_family_indices()
-        , m_graphics_queue()
-        , m_present_queue()
-        , m_swapchain()
-        , m_swapchain_images()
-    { }
-
     Application::~Application() {
 
     }
@@ -77,6 +62,7 @@ namespace Kumo {
         SelectPhysicalDevice();
         CreateLogicalDevice();
         CreateSwapchain();
+        CreateSwapchainImageViews();
     }
 
     void Application::RunLoop() {
@@ -86,6 +72,9 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        for (const auto& image_view : m_swapchain_image_views) {
+            vkDestroyImageView(m_device, image_view, nullptr);
+        }
         vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
         vkDestroyDevice(m_device, nullptr);
         KUMO_DEBUG_ONLY {
@@ -337,6 +326,39 @@ namespace Kumo {
 
         m_swapchain_image_format = surface_format.format;
         m_swapchain_extent       = extent;
+    }
+
+    void Application::CreateSwapchainImageViews() {
+        m_swapchain_image_views.resize(m_swapchain_images.size());
+        for (size_t i = 0; i < m_swapchain_images.size(); i++) {
+            static constexpr VkComponentMapping def_component_mapping{
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY
+            };
+            static constexpr VkImageSubresourceRange def_subresource_range {
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                0,
+                1,
+                0,
+                1
+            };
+            const VkImageViewCreateInfo create_info {
+                VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                nullptr,
+                0,
+                m_swapchain_images[i],
+                VK_IMAGE_VIEW_TYPE_2D,
+                m_swapchain_image_format,
+                def_component_mapping,
+                def_subresource_range
+            };
+            if (vkCreateImageView(m_device, &create_info, nullptr,
+                    &m_swapchain_image_views[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create image views.");
+            }
+        }
     }
 
     bool Application::AreLayersSupported(
