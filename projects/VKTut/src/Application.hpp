@@ -65,6 +65,7 @@ namespace Kumo {
         void CreateLogicalDevice();
         void CreateSwapchain();
         void CreateSwapchainImageViews();
+        void CreateGraphicsPipeline();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
@@ -84,6 +85,8 @@ namespace Kumo {
             const std::vector<VkPresentModeKHR>& available_modes) const;
         VkExtent2D SelectSwapchainExtent(
             const VkSurfaceCapabilitiesKHR& capabilities) const;
+        VkShaderModule CreateShaderModule(const std::vector<Byte>& bytecode)
+            const;
 
         void SetupDebugMessenger();
 

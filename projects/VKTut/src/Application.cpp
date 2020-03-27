@@ -1,5 +1,6 @@
 #include "Common.hpp"
 #include "Application.hpp"
+#include "IO.hpp"
 
 namespace Kumo {
 
@@ -63,6 +64,7 @@ namespace Kumo {
         CreateLogicalDevice();
         CreateSwapchain();
         CreateSwapchainImageViews();
+        CreateGraphicsPipeline();
     }
 
     void Application::RunLoop() {
@@ -361,6 +363,42 @@ namespace Kumo {
         }
     }
 
+    void Application::CreateGraphicsPipeline() {
+        const auto vertex_shader_bytecode =
+            IO::ReadBinaryFile("res/shaders/vertex_shader.spv");
+        const auto fragment_shader_bytecode =
+            IO::ReadBinaryFile("res/shaders/fragment_shader.spv");
+        const VkShaderModule
+            vertex_shader_module =
+                CreateShaderModule(vertex_shader_bytecode),
+            fragment_shader_module =
+                CreateShaderModule(fragment_shader_bytecode);
+
+        const std::array<const VkPipelineShaderStageCreateInfo, 2> stages {{
+            {
+                VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                nullptr,
+                0,
+                VK_SHADER_STAGE_VERTEX_BIT,
+                vertex_shader_module,
+                "main",
+                nullptr
+            },
+            {
+                VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                nullptr,
+                0,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                fragment_shader_module,
+                "main",
+                nullptr
+            }
+        }};
+
+        vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
+        vkDestroyShaderModule(m_device, fragment_shader_module, nullptr);
+    }
+
     bool Application::AreLayersSupported(
             const std::vector<const char*>& layers) const {
         UInt32 n_available_layers;
@@ -523,6 +561,23 @@ namespace Kumo {
                 std::min(capabilities.maxImageExtent.height, WindowHeight)
             )
         };
+    }
+
+    VkShaderModule Application::CreateShaderModule(
+        const std::vector<Byte>& bytecode) const {
+        const VkShaderModuleCreateInfo create_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            nullptr,
+            0,
+            bytecode.size(),
+            reinterpret_cast<const UInt32*>(bytecode.data())
+        };
+        VkShaderModule shader_module;
+        if (vkCreateShaderModule(m_device, &create_info, nullptr,
+                &shader_module) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create shader module.");
+        }
+        return shader_module;
     }
 
     void Application::SetupDebugMessenger() {
