@@ -15,6 +15,12 @@ namespace Kumo {
         }
     };
 
+    struct SwapchainSupportInfo {
+        VkSurfaceCapabilitiesKHR        Capabilities = {};
+        std::vector<VkSurfaceFormatKHR> Formats;
+        std::vector<VkPresentModeKHR>   PresentModes;
+    };
+
     class Application {
     public:
         Application();
@@ -22,8 +28,8 @@ namespace Kumo {
 
         void Run();
     private:
-        inline static constexpr int WindowWidth  = 800;
-        inline static constexpr int WindowHeight = 600;
+        inline static constexpr UInt32 WindowWidth  = 800;
+        inline static constexpr UInt32 WindowHeight = 600;
 
         GLFWwindow* m_window;
 
@@ -31,10 +37,17 @@ namespace Kumo {
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
         VkDevice         m_device;
         VkSurfaceKHR     m_surface;
+
+        QueueFamilyIndices m_queue_family_indices;
         VkQueue
             // implicitly destroyed with logical device
             m_graphics_queue,
             m_present_queue;
+
+        VkSwapchainKHR       m_swapchain;
+        std::vector<VkImage> m_swapchain_images; // implicitly destroyed with swapchain
+        VkFormat             m_swapchain_image_format;
+        VkExtent2D           m_swapchain_extent;
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -49,6 +62,7 @@ namespace Kumo {
         void CreateSurface();
         void SelectPhysicalDevice();
         void CreateLogicalDevice();
+        void CreateSwapchain();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
@@ -58,6 +72,16 @@ namespace Kumo {
             VkPhysicalDeviceFeatures& features) const;
         QueueFamilyIndices FindQueueFamilies(const VkPhysicalDevice& device)
             const;
+        bool CheckDeviceExtensionSupport(const VkPhysicalDevice& device,
+            const std::vector<const char*>& extensions) const;
+        SwapchainSupportInfo QuerySwapchainSupport(
+            const VkPhysicalDevice& device, const VkSurfaceKHR& surface) const;
+        VkSurfaceFormatKHR SelectSwapchainSurfaceFormat(
+            const std::vector<VkSurfaceFormatKHR>& available_formats) const;
+        VkPresentModeKHR SelectSwapchainPresentMode(
+            const std::vector<VkPresentModeKHR>& available_modes) const;
+        VkExtent2D SelectSwapchainExtent(
+            const VkSurfaceCapabilitiesKHR& capabilities) const;
 
         void SetupDebugMessenger();
 
