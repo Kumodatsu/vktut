@@ -74,6 +74,7 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
         for (const auto& image_view : m_swapchain_image_views) {
             vkDestroyImageView(m_device, image_view, nullptr);
         }
@@ -394,6 +395,132 @@ namespace Kumo {
                 nullptr
             }
         }};
+
+        const VkPipelineVertexInputStateCreateInfo vertex_input_info {
+            VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr
+        };
+
+        const VkPipelineInputAssemblyStateCreateInfo input_assembly_info {
+            VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            VK_FALSE
+        };
+
+        const VkViewport viewport {
+            0.0f,
+            0.0f,
+            static_cast<float>(m_swapchain_extent.width),
+            static_cast<float>(m_swapchain_extent.height),
+            0.0f,
+            1.0f
+        };
+
+        const VkRect2D scissor {
+            { 0, 0 },
+            m_swapchain_extent
+        };
+
+        const VkPipelineViewportStateCreateInfo viewport_state_info {
+            VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            1,
+            &viewport,
+            1,
+            &scissor
+        };
+
+        const VkPipelineRasterizationStateCreateInfo rasterization_info {
+            VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            VK_FALSE,
+            VK_FALSE,
+            VK_POLYGON_MODE_FILL, // _LINE for wireframe?
+            VK_CULL_MODE_BACK_BIT,
+            VK_FRONT_FACE_CLOCKWISE,
+            VK_FALSE,
+            0.0f,
+            0.0f,
+            0.0f,
+            1.0f
+        };
+
+        const VkPipelineMultisampleStateCreateInfo multisample_info {
+            VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_FALSE,
+            1.0f,
+            nullptr,
+            VK_FALSE,
+            VK_FALSE
+        };
+
+        // TODO: VkPipelineDepthStencilStateCreateInfo
+
+        const VkPipelineColorBlendAttachmentState color_blend_attachment_state {
+            VK_FALSE,
+            VK_BLEND_FACTOR_ONE,
+            VK_BLEND_FACTOR_ZERO,
+            VK_BLEND_OP_ADD,
+            VK_BLEND_FACTOR_ONE,
+            VK_BLEND_FACTOR_ZERO,
+            VK_BLEND_OP_ADD,
+            VK_COLOR_COMPONENT_R_BIT
+                | VK_COLOR_COMPONENT_G_BIT
+                | VK_COLOR_COMPONENT_B_BIT
+                | VK_COLOR_COMPONENT_A_BIT
+        };
+
+        const VkPipelineColorBlendStateCreateInfo color_blend_info {
+            VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            VK_FALSE,
+            VK_LOGIC_OP_COPY,
+            1,
+            &color_blend_attachment_state,
+            0.0f, 0.0f, 0.0f, 0.0f
+        };
+
+        /* // Dynamic State
+        const std::array<const VkDynamicState, 2> dynamic_states {{
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_LINE_WIDTH
+        }};
+        const VkPipelineDynamicStateCreateInfo dynamic_state_info {
+            VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            dynamic_states.size(),
+            dynamic_states.data()
+        };
+        */
+
+        const VkPipelineLayoutCreateInfo pipeline_layout_info {
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            nullptr,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr
+        };
+
+        if (vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr,
+                &m_pipeline_layout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout.");
+        }
 
         vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
         vkDestroyShaderModule(m_device, fragment_shader_module, nullptr);

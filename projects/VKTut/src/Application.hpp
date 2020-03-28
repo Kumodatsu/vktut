@@ -50,6 +50,8 @@ namespace Kumo {
         VkFormat                 m_swapchain_image_format;
         VkExtent2D               m_swapchain_extent;
 
+        VkPipelineLayout m_pipeline_layout;
+
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
         VkDebugUtilsMessengerEXT           m_debug_messenger;
