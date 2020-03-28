@@ -64,6 +64,7 @@ namespace Kumo {
         CreateLogicalDevice();
         CreateSwapchain();
         CreateSwapchainImageViews();
+        CreateRenderPass();
         CreateGraphicsPipeline();
     }
 
@@ -75,6 +76,7 @@ namespace Kumo {
 
     void Application::Cleanup() {
         vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
+        vkDestroyRenderPass(m_device, m_render_pass, nullptr);
         for (const auto& image_view : m_swapchain_image_views) {
             vkDestroyImageView(m_device, image_view, nullptr);
         }
@@ -361,6 +363,51 @@ namespace Kumo {
                     &m_swapchain_image_views[i]) != VK_SUCCESS) {
                 throw std::runtime_error("Failed to create image views.");
             }
+        }
+    }
+
+    void Application::CreateRenderPass() {
+        const VkAttachmentDescription color_attachment_desc {
+            0,
+            m_swapchain_image_format,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_ATTACHMENT_LOAD_OP_CLEAR,
+            VK_ATTACHMENT_STORE_OP_STORE,
+            VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        };
+        const VkAttachmentReference color_attachment_ref {
+            0,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        };
+        const VkSubpassDescription subpass_desc {
+            0,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            0,
+            nullptr,
+            1,
+            &color_attachment_ref, // layout(location = 0) in frag shader
+            nullptr,
+            nullptr,
+            0,
+            nullptr
+        };
+        const VkRenderPassCreateInfo render_pass_info {
+            VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            nullptr,
+            0,
+            1,
+            &color_attachment_desc,
+            1,
+            &subpass_desc,
+            0,
+            nullptr
+        };
+        if (vkCreateRenderPass(m_device, &render_pass_info, nullptr,
+                &m_render_pass) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create render pass!");
         }
     }
 

@@ -50,6 +50,7 @@ namespace Kumo {
         VkFormat                 m_swapchain_image_format;
         VkExtent2D               m_swapchain_extent;
 
+        VkRenderPass     m_render_pass;
         VkPipelineLayout m_pipeline_layout;
 
         // Debug members
@@ -67,6 +68,7 @@ namespace Kumo {
         void CreateLogicalDevice();
         void CreateSwapchain();
         void CreateSwapchainImageViews();
+        void CreateRenderPass();
         void CreateGraphicsPipeline();
 
         bool AreLayersSupported(
