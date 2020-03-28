@@ -52,6 +52,7 @@ namespace Kumo {
 
         VkRenderPass     m_render_pass;
         VkPipelineLayout m_pipeline_layout;
+        VkPipeline       m_graphics_pipeline;
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;

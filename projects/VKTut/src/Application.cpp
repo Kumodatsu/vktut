@@ -75,6 +75,7 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
         vkDestroyRenderPass(m_device, m_render_pass, nullptr);
         for (const auto& image_view : m_swapchain_image_views) {
@@ -422,7 +423,8 @@ namespace Kumo {
             fragment_shader_module =
                 CreateShaderModule(fragment_shader_bytecode);
 
-        const std::array<const VkPipelineShaderStageCreateInfo, 2> stages {{
+        const std::array<const VkPipelineShaderStageCreateInfo, 2>
+                shader_stages {{
             {
                 VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 nullptr,
@@ -567,6 +569,33 @@ namespace Kumo {
         if (vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr,
                 &m_pipeline_layout) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create pipeline layout.");
+        }
+
+        const VkGraphicsPipelineCreateInfo pipeline_info {
+            VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            nullptr,
+            0,
+            static_cast<UInt32>(shader_stages.size()),
+            shader_stages.data(),
+            &vertex_input_info,
+            &input_assembly_info,
+            nullptr,
+            &viewport_state_info,
+            &rasterization_info,
+            &multisample_info,
+            nullptr,
+            &color_blend_info,
+            nullptr, // dynamic state
+            m_pipeline_layout,
+            m_render_pass,
+            0,
+            VK_NULL_HANDLE,
+            -1
+        };
+
+        if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1,
+                &pipeline_info, nullptr, &m_graphics_pipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create graphics pipeline.");
         }
 
         vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
