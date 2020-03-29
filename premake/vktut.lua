@@ -1,3 +1,9 @@
+local vulkan_sdk = os.getenv("VULKAN_SDK") or os.getenv("VK_SDK_PATH")
+if vulkan_sdk == nil then
+    print "Can't locate Vulkan SDK."
+    return
+end
+
 project "VKTut"
     location      "../projects/VKTut"
     kind          "ConsoleApp"
@@ -26,10 +32,10 @@ project "VKTut"
         "../projects/%{prj.name}/src",
         "../dependencies/glfw/include",
         "../dependencies/glm",
-        "../dependencies/vulkan/Include"
+        vulkan_sdk .. "/Include"
     }
     libdirs {
-        "../dependencies/vulkan/Lib"
+        vulkan_sdk .. "/Lib"
     }
     links {
         "GLFW",
