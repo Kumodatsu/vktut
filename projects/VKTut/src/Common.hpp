@@ -23,6 +23,7 @@
 #include <memory>
 #include <new>
 #include <cstdlib>
+#include <cstring>
 #include <malloc.h>
 
 #define KUMO_NOOP ((void*)0)
