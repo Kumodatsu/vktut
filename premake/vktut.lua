@@ -14,9 +14,6 @@ project "VKTut"
     pchheader     "Common.hpp"
     pchsource     "../projects/VKTut/src/Common.cpp"
     warnings      "extra"
-    disablewarnings {
-        26812
-    }
     targetdir     "../output/bin/%{cfg.buildcfg}/%{prj.name}"
     objdir        "../output/obj/%{cfg.buildcfg}/%{prj.name}"
     defines {
@@ -32,15 +29,27 @@ project "VKTut"
         "../projects/%{prj.name}/src",
         "../dependencies/glfw/include",
         "../dependencies/glm",
-        vulkan_sdk .. "/Include"
+        vulkan_sdk .. "/include"
     }
     libdirs {
-        vulkan_sdk .. "/Lib"
+        vulkan_sdk .. "/lib"
     }
     links {
-        "GLFW",
-        "vulkan-1"
+        "GLFW"
     }
+    filter "system:windows"
+        links {
+            "vulkan-1"
+        }
+        disablewarnings {
+            26812
+        }
+    filter "system:linux"
+        links { 
+            "vulkan",
+            "dl",
+            "pthread"
+        }
     filter "configurations:Debug"
         runtime  "Debug"
         symbols  "on"

@@ -35,6 +35,22 @@ project "GLFW"
         defines {
             "_GLFW_WIN32"
         }
+    filter "system:linux"
+        files {
+            dir .. "/src/x11_init.c",
+			dir .. "/src/x11_monitor.c",
+			dir .. "/src/x11_window.c",
+			dir .. "/src/xkb_unicode.c",
+			dir .. "/src/posix_time.c",
+			dir .. "/src/posix_thread.c",
+			dir .. "/src/glx_context.c",
+			dir .. "/src/egl_context.c",
+			dir .. "/src/osmesa_context.c",
+			dir .. "/src/linux_joystick.c"
+        }
+        defines {
+            "_GLFW_X11"
+        }
     filter "configurations:Debug"
         runtime  "Debug"
         symbols  "on"
