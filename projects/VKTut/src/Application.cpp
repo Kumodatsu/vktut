@@ -158,6 +158,16 @@ namespace Kumo {
             p_next = &m_debug_messenger_create_info;
         }
 
+        std::cout << "Using extensions: " << std::endl;
+        for (const char* extension_name : required_extensions) {
+            std::cout << "\t" << extension_name << std::endl;
+        }
+
+        std::cout << "Using layers: " << std::endl;
+        for (const char* layer_name : layers) {
+            std::cout << "\t " << layer_name << std::endl;
+        }
+
         const VkInstanceCreateInfo create_info {
             VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             p_next,
