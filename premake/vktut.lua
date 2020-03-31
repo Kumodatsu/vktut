@@ -1,7 +1,7 @@
 local vulkan_sdk = os.getenv("VULKAN_SDK") or os.getenv("VK_SDK_PATH")
 if vulkan_sdk == nil then
-    print "Can't locate Vulkan SDK."
-    return
+    -- print "Can't locate Vulkan SDK."
+    -- return
 end
 
 project "VKTut"

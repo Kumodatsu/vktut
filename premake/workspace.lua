@@ -1,5 +1,5 @@
 workspace "VKTut"
-    location     "../projects"
+    location     ".."
     architecture "x64"
     startproject "VKTut"
     configurations {
