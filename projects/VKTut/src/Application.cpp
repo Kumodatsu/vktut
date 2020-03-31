@@ -67,6 +67,8 @@ namespace Kumo {
         CreateRenderPass();
         CreateGraphicsPipeline();
         CreateFramebuffers();
+        CreateCommandPool();
+        CreateCommandBuffers();
     }
 
     void Application::RunLoop() {
@@ -76,6 +78,7 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        vkDestroyCommandPool(m_device, m_cmd_pool, nullptr);
         for (const auto& framebuffer : m_swapchain_framebuffers) {
             vkDestroyFramebuffer(m_device, framebuffer, nullptr);
         }
@@ -633,6 +636,70 @@ namespace Kumo {
             if (vkCreateFramebuffer(m_device, &framebuffer_info, nullptr,
                     &m_swapchain_framebuffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("Failed to create framebuffer.");
+            }
+        }
+    }
+
+    void Application::CreateCommandPool() {
+        const VkCommandPoolCreateInfo cmd_pool_info {
+            VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            nullptr,
+            0,
+            m_queue_family_indices.GraphicsFamily.value()
+        };
+        if (vkCreateCommandPool(m_device, &cmd_pool_info, nullptr,
+                &m_cmd_pool) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create command pool.");
+        }
+    }
+
+    void Application::CreateCommandBuffers() {
+        m_cmd_buffers.resize(m_swapchain_framebuffers.size());
+        const VkCommandBufferAllocateInfo allocation_info {
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            nullptr,
+            m_cmd_pool,
+            VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            static_cast<UInt32>(m_cmd_buffers.size())
+        };
+        if (vkAllocateCommandBuffers(m_device, &allocation_info,
+                m_cmd_buffers.data()) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate command buffers.");
+        }
+
+        for (size_t i = 0; i < m_cmd_buffers.size(); i++) {
+            const VkCommandBufferBeginInfo begin_info {
+                VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                nullptr,
+                0,
+                nullptr
+            };
+            if (vkBeginCommandBuffer(m_cmd_buffers[i], &begin_info)
+                    != VK_SUCCESS) {
+                throw std::runtime_error("Failed to begin recording command buffer.");
+            }
+            const VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+            const VkRenderPassBeginInfo render_pass_info {
+                VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                nullptr,
+                m_render_pass,
+                m_swapchain_framebuffers[i],
+                {{0, 0}, {m_swapchain_extent}},
+                1,
+                &clear_color
+            };
+            vkCmdBeginRenderPass(m_cmd_buffers[i], &render_pass_info,
+                    VK_SUBPASS_CONTENTS_INLINE); {
+                vkCmdBindPipeline(
+                    m_cmd_buffers[i],
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    m_graphics_pipeline
+                );
+                vkCmdDraw(m_cmd_buffers[i], 3, 1, 0, 0);
+            }
+            vkCmdEndRenderPass(m_cmd_buffers[i]);
+            if (vkEndCommandBuffer(m_cmd_buffers[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to record command buffer.");
             }
         }
     }

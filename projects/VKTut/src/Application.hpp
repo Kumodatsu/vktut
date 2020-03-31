@@ -54,7 +54,9 @@ namespace Kumo {
         VkRenderPass     m_render_pass;
         VkPipelineLayout m_pipeline_layout;
         VkPipeline       m_graphics_pipeline;
+        VkCommandPool    m_cmd_pool;
 
+        std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -74,6 +76,8 @@ namespace Kumo {
         void CreateRenderPass();
         void CreateGraphicsPipeline();
         void CreateFramebuffers();
+        void CreateCommandPool();
+        void CreateCommandBuffers();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
