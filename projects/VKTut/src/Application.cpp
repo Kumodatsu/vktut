@@ -160,7 +160,7 @@ namespace Kumo {
 
         const VkInstanceCreateInfo create_info {
             VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            nullptr,
+            p_next,
             0,
             &app_info,
             static_cast<UInt32>(layers.size()),
