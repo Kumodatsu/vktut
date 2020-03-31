@@ -5,16 +5,26 @@
 
 namespace Kumo::IO {
 
-    static const std::string s_mount_path = "../..";
+    namespace VFS {
+        static std::string s_mount_path = ".";
 
-    static std::string Mount(const std::string& path) {
-        return s_mount_path + "/" + path;
+        void Mount(const std::string& path) {
+            s_mount_path = path;
+        }
+
+        std::string GetPath(const std::string& path) {
+            return s_mount_path + "/" + path;
+        }
     }
 
     std::vector<Byte> ReadBinaryFile(const std::string& path) {
-        std::ifstream stream(Mount(path), std::ios::ate | std::ios::binary);
+        const std::string& vfs_path = VFS::GetPath(path);
+        std::ifstream stream(vfs_path, std::ios::ate | std::ios::binary);
         if (!stream.is_open() || stream.bad()) {
-            throw std::runtime_error("Failed to open file.");
+            throw std::runtime_error(
+                std::string("Failed to open file: ")
+                + vfs_path
+            );
         }
 
         const USize file_size = static_cast<USize>(stream.tellg());
