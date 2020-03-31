@@ -58,6 +58,10 @@ namespace Kumo {
 
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
+        VkSemaphore
+            m_sem_image_available,
+            m_sem_render_finished;
+
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
         VkDebugUtilsMessengerEXT           m_debug_messenger;
@@ -66,6 +70,8 @@ namespace Kumo {
         void InitializeVulkan();
         void RunLoop();
         void Cleanup();
+
+        void DrawFrame();
 
         void CreateInstance();
         void CreateSurface();
@@ -78,6 +84,7 @@ namespace Kumo {
         void CreateFramebuffers();
         void CreateCommandPool();
         void CreateCommandBuffers();
+        void CreateSemaphores();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;

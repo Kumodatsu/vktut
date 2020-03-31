@@ -69,15 +69,20 @@ namespace Kumo {
         CreateFramebuffers();
         CreateCommandPool();
         CreateCommandBuffers();
+        CreateSemaphores();
     }
 
     void Application::RunLoop() {
         while (!glfwWindowShouldClose(m_window)) {
             glfwPollEvents();
+            DrawFrame();
         }
+        vkDeviceWaitIdle(m_device);
     }
 
     void Application::Cleanup() {
+        vkDestroySemaphore(m_device, m_sem_render_finished, nullptr);
+        vkDestroySemaphore(m_device, m_sem_image_available, nullptr);
         vkDestroyCommandPool(m_device, m_cmd_pool, nullptr);
         for (const auto& framebuffer : m_swapchain_framebuffers) {
             vkDestroyFramebuffer(m_device, framebuffer, nullptr);
@@ -107,6 +112,46 @@ namespace Kumo {
         vkDestroyInstance(m_instance, nullptr);
         glfwDestroyWindow(m_window);
         glfwTerminate();
+    }
+
+    void Application::DrawFrame() {
+        UInt32 image_index;
+        vkAcquireNextImageKHR(
+            m_device,
+            m_swapchain,
+            std::numeric_limits<UInt64>::max(),
+            m_sem_image_available,
+            VK_NULL_HANDLE,
+            &image_index
+        );
+        const VkPipelineStageFlags wait_stages =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        const VkSubmitInfo submit_info {
+            VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            nullptr,
+            1,
+            &m_sem_image_available,
+            &wait_stages,
+            1,
+            &m_cmd_buffers[image_index],
+            1,
+            &m_sem_render_finished
+        };
+        if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE)
+                != VK_SUCCESS) {
+            throw std::runtime_error("Failed to submit draw command buffer.");
+        }
+        const VkPresentInfoKHR present_info {
+            VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            nullptr,
+            1,
+            &m_sem_render_finished,
+            1,
+            &m_swapchain,
+            &image_index,
+            nullptr
+        };
+        vkQueuePresentKHR(m_present_queue, &present_info);
     }
 
     void Application::CreateInstance() {
@@ -412,6 +457,15 @@ namespace Kumo {
             0,
             nullptr
         };
+        const VkSubpassDependency subpass_dependency {
+            VK_SUBPASS_EXTERNAL,
+            0,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            0
+        };
         const VkRenderPassCreateInfo render_pass_info {
             VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             nullptr,
@@ -420,8 +474,8 @@ namespace Kumo {
             &color_attachment_desc,
             1,
             &subpass_desc,
-            0,
-            nullptr
+            1,
+            &subpass_dependency
         };
         if (vkCreateRenderPass(m_device, &render_pass_info, nullptr,
                 &m_render_pass) != VK_SUCCESS) {
@@ -701,6 +755,20 @@ namespace Kumo {
             if (vkEndCommandBuffer(m_cmd_buffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("Failed to record command buffer.");
             }
+        }
+    }
+
+    void Application::CreateSemaphores() {
+        const VkSemaphoreCreateInfo semaphore_info {
+            VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            nullptr,
+            0
+        };
+        if (vkCreateSemaphore(m_device, &semaphore_info, nullptr,
+                &m_sem_image_available) != VK_SUCCESS
+                || vkCreateSemaphore(m_device, &semaphore_info, nullptr,
+                    &m_sem_render_finished) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create semaphores.");
         }
     }
 
