@@ -54,11 +54,20 @@ project "VKTut"
         runtime  "Debug"
         symbols  "on"
         optimize "off"
+        defines {
+            "KUMO_CONFIG_DEBUG"
+        }
     filter "configurations:Profile"
         runtime  "Release"
         symbols  "on"
         optimize "on"
+        defines {
+            "KUMO_CONFIG_PROFILE"
+        }
     filter "configurations:Release"
         runtime  "Release"
         symbols  "off"
         optimize "on"
+        defines {
+            "KUMO_CONFIG_RELEASE"
+        }

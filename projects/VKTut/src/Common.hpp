@@ -28,7 +28,7 @@
 
 #define KUMO_NOOP ((void*)0)
 
-#if defined(_DEBUG)
+#if defined(KUMO_CONFIG_DEBUG)
 #define KUMO_DEBUG_ONLY if constexpr (true)
 #else
 #define KUMO_DEBUG_ONLY if constexpr (false)
