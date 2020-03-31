@@ -44,15 +44,17 @@ namespace Kumo {
             m_graphics_queue,
             m_present_queue;
 
-        VkSwapchainKHR           m_swapchain;
-        std::vector<VkImage>     m_swapchain_images; // implicitly destroyed with swapchain
-        std::vector<VkImageView> m_swapchain_image_views;
-        VkFormat                 m_swapchain_image_format;
-        VkExtent2D               m_swapchain_extent;
+        VkSwapchainKHR             m_swapchain;
+        std::vector<VkImage>       m_swapchain_images; // implicitly destroyed with swapchain
+        std::vector<VkImageView>   m_swapchain_image_views;
+        VkFormat                   m_swapchain_image_format;
+        VkExtent2D                 m_swapchain_extent;
+        std::vector<VkFramebuffer> m_swapchain_framebuffers;
 
         VkRenderPass     m_render_pass;
         VkPipelineLayout m_pipeline_layout;
         VkPipeline       m_graphics_pipeline;
+
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -71,6 +73,7 @@ namespace Kumo {
         void CreateSwapchainImageViews();
         void CreateRenderPass();
         void CreateGraphicsPipeline();
+        void CreateFramebuffers();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;

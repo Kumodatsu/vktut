@@ -66,6 +66,7 @@ namespace Kumo {
         CreateSwapchainImageViews();
         CreateRenderPass();
         CreateGraphicsPipeline();
+        CreateFramebuffers();
     }
 
     void Application::RunLoop() {
@@ -75,6 +76,9 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        for (const auto& framebuffer : m_swapchain_framebuffers) {
+            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+        }
         vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
         vkDestroyRenderPass(m_device, m_render_pass, nullptr);
@@ -610,6 +614,27 @@ namespace Kumo {
 
         vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
         vkDestroyShaderModule(m_device, fragment_shader_module, nullptr);
+    }
+
+    void Application::CreateFramebuffers() {
+        m_swapchain_framebuffers.resize(m_swapchain_image_views.size());
+        for (size_t i = 0; i < m_swapchain_image_views.size(); i++) {
+            const VkFramebufferCreateInfo framebuffer_info {
+                VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                nullptr,
+                0,
+                m_render_pass,
+                1,
+                &m_swapchain_image_views[i],
+                m_swapchain_extent.width,
+                m_swapchain_extent.height,
+                1
+            };
+            if (vkCreateFramebuffer(m_device, &framebuffer_info, nullptr,
+                    &m_swapchain_framebuffers[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create framebuffer.");
+            }
+        }
     }
 
     bool Application::AreLayersSupported(
