@@ -62,9 +62,11 @@ namespace Kumo {
         VkCommandPool    m_cmd_pool;
 
         VkDeviceMemory
-            m_mem_vertex_buffer;
+            m_mem_vertex_buffer,
+            m_mem_index_buffer;
         VkBuffer
-            m_vertex_buffer;
+            m_vertex_buffer,
+            m_index_buffer;
 
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
@@ -97,6 +99,7 @@ namespace Kumo {
         void CreateFramebuffers();
         void CreateCommandPool();
         void CreateVertexBuffer();
+        void CreateIndexBuffer();
         void CreateCommandBuffers();
         void CreateSynchronizationObjects();
 

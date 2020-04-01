@@ -14,9 +14,14 @@ namespace Kumo {
     };
 
     static const std::vector<Vertex> Vertices {
-        {{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
+        {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
+    };
+
+    static const std::vector<UInt16> Indices {
+        0, 1, 2, 2, 3, 0
     };
 
     Application::~Application() {
@@ -78,6 +83,7 @@ namespace Kumo {
         CreateFramebuffers();
         CreateCommandPool();
         CreateVertexBuffer();
+        CreateIndexBuffer();
         CreateCommandBuffers();
         CreateSynchronizationObjects();
     }
@@ -92,6 +98,8 @@ namespace Kumo {
 
     void Application::Cleanup() {
         CleanupSwapchain();
+        vkDestroyBuffer(m_device, m_index_buffer, nullptr);
+        vkFreeMemory(m_device, m_mem_index_buffer, nullptr);
         vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
         vkFreeMemory(m_device, m_mem_vertex_buffer, nullptr);
         for (size_t i = 0; i < MaxFramesInFlight; i++) {
@@ -798,6 +806,40 @@ namespace Kumo {
         vkFreeMemory(m_device, mem_staging_buffer, nullptr);
     }
 
+    void Application::CreateIndexBuffer() {
+        const VkDeviceSize buffer_size = sizeof(UInt16) * Indices.size();
+
+        VkBuffer       staging_buffer;
+        VkDeviceMemory mem_staging_buffer;
+        CreateBuffer(
+            buffer_size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            staging_buffer,
+            mem_staging_buffer
+        );
+
+        void* data;
+        vkMapMemory(m_device, mem_staging_buffer, 0, buffer_size, 0,
+            &data);
+        memcpy(data, Indices.data(), static_cast<USize>(buffer_size));
+        vkUnmapMemory(m_device, mem_staging_buffer);
+
+        CreateBuffer(
+            buffer_size,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT
+                | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            m_index_buffer,
+            m_mem_index_buffer
+        );
+        CopyBuffer(staging_buffer, m_index_buffer, buffer_size);
+
+        vkDestroyBuffer(m_device, staging_buffer, nullptr);
+        vkFreeMemory(m_device, mem_staging_buffer, nullptr);
+    }
+
     void Application::CreateCommandBuffers() {
         m_cmd_buffers.resize(m_swapchain_framebuffers.size());
         const VkCommandBufferAllocateInfo allocation_info {
@@ -813,15 +855,17 @@ namespace Kumo {
         }
 
         for (size_t i = 0; i < m_cmd_buffers.size(); i++) {
+            const VkCommandBuffer& buffer = m_cmd_buffers[i];
             const VkCommandBufferBeginInfo begin_info {
                 VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                 nullptr,
                 0,
                 nullptr
             };
-            if (vkBeginCommandBuffer(m_cmd_buffers[i], &begin_info)
-                    != VK_SUCCESS) {
-                throw std::runtime_error("Failed to begin recording command buffer.");
+            if (vkBeginCommandBuffer(buffer, &begin_info) != VK_SUCCESS) {
+                throw std::runtime_error(
+                    "Failed to begin recording command buffer."
+                );
             }
             const VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
             const VkRenderPassBeginInfo render_pass_info {
@@ -833,21 +877,23 @@ namespace Kumo {
                 1,
                 &clear_color
             };
-            vkCmdBeginRenderPass(m_cmd_buffers[i], &render_pass_info,
+            vkCmdBeginRenderPass(buffer, &render_pass_info,
                     VK_SUBPASS_CONTENTS_INLINE); {
                 vkCmdBindPipeline(
-                    m_cmd_buffers[i],
+                    buffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     m_graphics_pipeline
                 );
                 VkDeviceSize offset = 0;
-                vkCmdBindVertexBuffers(m_cmd_buffers[i], 0, 1,
-                    &m_vertex_buffer, &offset);
-                vkCmdDraw(m_cmd_buffers[i], static_cast<UInt32>(Vertices.size()),
-                    1, 0, 0);
+                vkCmdBindVertexBuffers(buffer, 0, 1,  &m_vertex_buffer,
+                    &offset);
+                vkCmdBindIndexBuffer(buffer, m_index_buffer, 0,
+                    VK_INDEX_TYPE_UINT16);
+                vkCmdDrawIndexed(buffer, static_cast<UInt32>(Indices.size()),
+                    1, 0, 0, 0);
             }
-            vkCmdEndRenderPass(m_cmd_buffers[i]);
-            if (vkEndCommandBuffer(m_cmd_buffers[i]) != VK_SUCCESS) {
+            vkCmdEndRenderPass(buffer);
+            if (vkEndCommandBuffer(buffer) != VK_SUCCESS) {
                 throw std::runtime_error("Failed to record command buffer.");
             }
         }
