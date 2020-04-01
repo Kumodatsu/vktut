@@ -1,6 +1,7 @@
 #include "Common.hpp"
 #include "Application.hpp"
 #include "IO.hpp"
+#include "Vertex.hpp"
 
 namespace Kumo {
 
@@ -10,6 +11,12 @@ namespace Kumo {
 
     static const std::vector<const char*> DeviceExtensions {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+    static const std::vector<Vertex> Vertices {
+        {{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
     };
 
     Application::~Application() {
