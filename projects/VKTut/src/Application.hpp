@@ -125,6 +125,9 @@ namespace Kumo {
             const;
         UInt32 SelectMemoryType(UInt32 type_filter,
             VkMemoryPropertyFlags properties) const;
+        void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage_flags,
+            VkMemoryPropertyFlags property_flags, VkBuffer& out_buffer,
+            VkDeviceMemory& out_memory) const;
 
         void SetupDebugMessenger();
 

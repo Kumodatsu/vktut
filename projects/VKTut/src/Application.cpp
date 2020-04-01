@@ -765,45 +765,20 @@ namespace Kumo {
     }
 
     void Application::CreateVertexBuffer() {
-        const VkBufferCreateInfo buffer_info {
-            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            nullptr,
-            0,
-            sizeof(Vertex) * Vertices.size(),
+        const VkDeviceSize buffer_size = sizeof(Vertex) * Vertices.size();
+        CreateBuffer(
+            buffer_size,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            VK_SHARING_MODE_EXCLUSIVE,
-            0,
-            nullptr
-        };
-        if (vkCreateBuffer(m_device, &buffer_info, nullptr, &m_vertex_buffer)
-                != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create vertex buffer.");
-        }
-        VkMemoryRequirements memory_requirements;
-        vkGetBufferMemoryRequirements(m_device, m_vertex_buffer,
-            &memory_requirements);
-        const VkMemoryAllocateInfo allocation_info {
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            nullptr,
-            memory_requirements.size,
-            SelectMemoryType(
-                memory_requirements.memoryTypeBits,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            )
-        };
-        if (vkAllocateMemory(m_device, &allocation_info, nullptr,
-                &m_mem_vertex_buffer) != VK_SUCCESS) {
-            throw std::runtime_error(
-                "Failed to allocate vertex buffer memory."
-            );
-        }
-        vkBindBufferMemory(m_device, m_vertex_buffer, m_mem_vertex_buffer, 0);
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            m_vertex_buffer,
+            m_mem_vertex_buffer
+        );
         void* vertex_data;
-        vkMapMemory(m_device, m_mem_vertex_buffer, 0, buffer_info.size, 0,
+        vkMapMemory(m_device, m_mem_vertex_buffer, 0, buffer_size, 0,
             &vertex_data);
         memcpy(vertex_data, Vertices.data(),
-            static_cast<USize>(buffer_info.size));
+            static_cast<USize>(buffer_size));
         vkUnmapMemory(m_device, m_mem_vertex_buffer);
     }
 
@@ -1132,6 +1107,48 @@ namespace Kumo {
             }
         }
         throw std::runtime_error("Failed to find suitable memory type.");
+    }
+
+    void Application::CreateBuffer(
+        VkDeviceSize size,
+        VkBufferUsageFlags usage_flags,
+        VkMemoryPropertyFlags property_flags,
+        VkBuffer& out_buffer,
+        VkDeviceMemory& out_memory
+    ) const {
+        const VkBufferCreateInfo buffer_info {
+            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            nullptr,
+            0,
+            size,
+            usage_flags,
+            VK_SHARING_MODE_EXCLUSIVE,
+            0,
+            nullptr
+        };
+        if (vkCreateBuffer(m_device, &buffer_info, nullptr, &out_buffer)
+                != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer.");
+        }
+        VkMemoryRequirements memory_requirements;
+        vkGetBufferMemoryRequirements(m_device, out_buffer,
+            &memory_requirements);
+        const VkMemoryAllocateInfo allocation_info {
+            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            nullptr,
+            memory_requirements.size,
+            SelectMemoryType(
+                memory_requirements.memoryTypeBits,
+                property_flags
+            )
+        };
+        if (vkAllocateMemory(m_device, &allocation_info, nullptr,
+                &out_memory) != VK_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to allocate vertex buffer memory."
+            );
+        }
+        vkBindBufferMemory(m_device, out_buffer, out_memory, 0);
     }
 
     void Application::SetupDebugMessenger() {
