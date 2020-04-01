@@ -61,6 +61,11 @@ namespace Kumo {
         VkPipeline       m_graphics_pipeline;
         VkCommandPool    m_cmd_pool;
 
+        VkDeviceMemory
+            m_mem_vertex_buffer;
+        VkBuffer
+            m_vertex_buffer;
+
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
         std::vector<VkSemaphore>
@@ -91,6 +96,7 @@ namespace Kumo {
         void CreateGraphicsPipeline();
         void CreateFramebuffers();
         void CreateCommandPool();
+        void CreateVertexBuffer();
         void CreateCommandBuffers();
         void CreateSynchronizationObjects();
 
@@ -117,6 +123,8 @@ namespace Kumo {
             const VkSurfaceCapabilitiesKHR& capabilities) const;
         VkShaderModule CreateShaderModule(const std::vector<Byte>& bytecode)
             const;
+        UInt32 SelectMemoryType(UInt32 type_filter,
+            VkMemoryPropertyFlags properties) const;
 
         void SetupDebugMessenger();
 

@@ -77,6 +77,7 @@ namespace Kumo {
         CreateGraphicsPipeline();
         CreateFramebuffers();
         CreateCommandPool();
+        CreateVertexBuffer();
         CreateCommandBuffers();
         CreateSynchronizationObjects();
     }
@@ -91,6 +92,8 @@ namespace Kumo {
 
     void Application::Cleanup() {
         CleanupSwapchain();
+        vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
+        vkFreeMemory(m_device, m_mem_vertex_buffer, nullptr);
         for (size_t i = 0; i < MaxFramesInFlight; i++) {
             vkDestroyFence(m_device, m_fens_in_flight[i], nullptr);
             vkDestroySemaphore(m_device, m_sems_render_finished[i], nullptr);
@@ -568,14 +571,16 @@ namespace Kumo {
             }
         }};
 
+        const auto binding_description    = Vertex::GetBindingDescription();
+        const auto attribute_descriptions = Vertex::GetAttributeDescriptions();
         const VkPipelineVertexInputStateCreateInfo vertex_input_info {
             VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
             nullptr,
             0,
-            0,
-            nullptr,
-            0,
-            nullptr
+            1,
+            &binding_description,
+            static_cast<UInt32>(attribute_descriptions.size()),
+            attribute_descriptions.data()
         };
 
         const VkPipelineInputAssemblyStateCreateInfo input_assembly_info {
@@ -759,6 +764,49 @@ namespace Kumo {
         }
     }
 
+    void Application::CreateVertexBuffer() {
+        const VkBufferCreateInfo buffer_info {
+            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            nullptr,
+            0,
+            sizeof(Vertex) * Vertices.size(),
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_SHARING_MODE_EXCLUSIVE,
+            0,
+            nullptr
+        };
+        if (vkCreateBuffer(m_device, &buffer_info, nullptr, &m_vertex_buffer)
+                != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer.");
+        }
+        VkMemoryRequirements memory_requirements;
+        vkGetBufferMemoryRequirements(m_device, m_vertex_buffer,
+            &memory_requirements);
+        const VkMemoryAllocateInfo allocation_info {
+            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            nullptr,
+            memory_requirements.size,
+            SelectMemoryType(
+                memory_requirements.memoryTypeBits,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            )
+        };
+        if (vkAllocateMemory(m_device, &allocation_info, nullptr,
+                &m_mem_vertex_buffer) != VK_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to allocate vertex buffer memory."
+            );
+        }
+        vkBindBufferMemory(m_device, m_vertex_buffer, m_mem_vertex_buffer, 0);
+        void* vertex_data;
+        vkMapMemory(m_device, m_mem_vertex_buffer, 0, buffer_info.size, 0,
+            &vertex_data);
+        memcpy(vertex_data, Vertices.data(),
+            static_cast<USize>(buffer_info.size));
+        vkUnmapMemory(m_device, m_mem_vertex_buffer);
+    }
+
     void Application::CreateCommandBuffers() {
         m_cmd_buffers.resize(m_swapchain_framebuffers.size());
         const VkCommandBufferAllocateInfo allocation_info {
@@ -801,7 +849,11 @@ namespace Kumo {
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     m_graphics_pipeline
                 );
-                vkCmdDraw(m_cmd_buffers[i], 3, 1, 0, 0);
+                VkDeviceSize offset = 0;
+                vkCmdBindVertexBuffers(m_cmd_buffers[i], 0, 1,
+                    &m_vertex_buffer, &offset);
+                vkCmdDraw(m_cmd_buffers[i], static_cast<UInt32>(Vertices.size()),
+                    1, 0, 0);
             }
             vkCmdEndRenderPass(m_cmd_buffers[i]);
             if (vkEndCommandBuffer(m_cmd_buffers[i]) != VK_SUCCESS) {
@@ -1062,6 +1114,24 @@ namespace Kumo {
             throw std::runtime_error("Failed to create shader module.");
         }
         return shader_module;
+    }
+
+    UInt32 Application::SelectMemoryType(UInt32 type_filter,
+            VkMemoryPropertyFlags properties) const {
+        VkPhysicalDeviceMemoryProperties mem_properties;
+        vkGetPhysicalDeviceMemoryProperties(m_physical_device,
+            &mem_properties);
+        for (UInt32 i = 0; i < mem_properties.memoryTypeCount; i++) {
+            const VkMemoryPropertyFlags property_flags =
+                mem_properties.memoryTypes[i].propertyFlags;
+            const bool
+                adheres_filter = type_filter & (1 << i),
+                has_properties = (property_flags & properties) == properties;
+            if (adheres_filter && has_properties) {
+                return i;
+            }
+        }
+        throw std::runtime_error("Failed to find suitable memory type.");
     }
 
     void Application::SetupDebugMessenger() {
