@@ -128,6 +128,8 @@ namespace Kumo {
         void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage_flags,
             VkMemoryPropertyFlags property_flags, VkBuffer& out_buffer,
             VkDeviceMemory& out_memory) const;
+        void CopyBuffer(const VkBuffer& src, const VkBuffer& dst,
+            VkDeviceSize size) const;
 
         void SetupDebugMessenger();
 

@@ -766,20 +766,36 @@ namespace Kumo {
 
     void Application::CreateVertexBuffer() {
         const VkDeviceSize buffer_size = sizeof(Vertex) * Vertices.size();
+
+        VkBuffer       staging_buffer;
+        VkDeviceMemory mem_staging_buffer;
         CreateBuffer(
             buffer_size,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                 | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            staging_buffer,
+            mem_staging_buffer
+        );
+
+        void* data;
+        vkMapMemory(m_device, mem_staging_buffer, 0, buffer_size, 0,
+            &data);
+        memcpy(data, Vertices.data(), static_cast<USize>(buffer_size));
+        vkUnmapMemory(m_device, mem_staging_buffer);
+
+        CreateBuffer(
+            buffer_size,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+                | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             m_vertex_buffer,
             m_mem_vertex_buffer
         );
-        void* vertex_data;
-        vkMapMemory(m_device, m_mem_vertex_buffer, 0, buffer_size, 0,
-            &vertex_data);
-        memcpy(vertex_data, Vertices.data(),
-            static_cast<USize>(buffer_size));
-        vkUnmapMemory(m_device, m_mem_vertex_buffer);
+        CopyBuffer(staging_buffer, m_vertex_buffer, buffer_size);
+        
+        vkDestroyBuffer(m_device, staging_buffer, nullptr);
+        vkFreeMemory(m_device, mem_staging_buffer, nullptr);
     }
 
     void Application::CreateCommandBuffers() {
@@ -1149,6 +1165,46 @@ namespace Kumo {
             );
         }
         vkBindBufferMemory(m_device, out_buffer, out_memory, 0);
+    }
+
+    void Application::CopyBuffer(const VkBuffer& src, const VkBuffer& dst,
+            VkDeviceSize size) const {
+        const VkCommandBufferAllocateInfo allocation_info {
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            nullptr,
+            m_cmd_pool,
+            VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            1
+        };
+        VkCommandBuffer cmd_buffer;
+        vkAllocateCommandBuffers(m_device, &allocation_info, &cmd_buffer);
+        const VkCommandBufferBeginInfo begin_info {
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            nullptr,
+            VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            nullptr
+        };
+
+        vkBeginCommandBuffer(cmd_buffer, &begin_info);
+            const VkBufferCopy copy_region { 0, 0, size };
+            vkCmdCopyBuffer(cmd_buffer, src, dst, 1, &copy_region);
+        vkEndCommandBuffer(cmd_buffer);
+
+        const VkSubmitInfo submit_info {
+            VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            nullptr,
+            0,
+            nullptr,
+            nullptr,
+            1,
+            &cmd_buffer,
+            0,
+            nullptr
+        };
+        vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+        vkQueueWaitIdle(m_graphics_queue);
+
+        vkFreeCommandBuffers(m_device, m_cmd_pool, 1, &cmd_buffer);
     }
 
     void Application::SetupDebugMessenger() {
