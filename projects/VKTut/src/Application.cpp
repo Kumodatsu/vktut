@@ -227,6 +227,15 @@ namespace Kumo {
         std::vector<const char*> layers;
         void* p_next = nullptr;
 
+        UInt32 n_available_layers;
+        vkEnumerateInstanceLayerProperties(&n_available_layers, nullptr);
+        std::vector<VkLayerProperties> available_layers(n_available_layers);
+        vkEnumerateInstanceLayerProperties(&n_available_layers,
+            available_layers.data());
+        std::cout << "Available layers:" << std::endl;
+        for (const auto& layer : available_layers)
+            std::cout << "\t" << layer.layerName << std::endl;
+
         KUMO_DEBUG_ONLY {
             if (!AreLayersSupported(ValidationLayers)) {
                 throw std::runtime_error(
