@@ -29,7 +29,7 @@ namespace Kumo {
             throw std::runtime_error("Failed to initialize GLFW.");
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE,  GLFW_TRUE);
 
         m_window = glfwCreateWindow(
             static_cast<int>(WindowWidth),
@@ -41,6 +41,8 @@ namespace Kumo {
 
         if (!m_window)
             throw std::runtime_error("Failed to create window.");
+        glfwSetWindowUserPointer(m_window, this);
+        glfwSetFramebufferSizeCallback(m_window, GLFWFramebufferResizeCallback);
     }
 
     void Application::InitializeVulkan() {
@@ -81,22 +83,13 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
+        CleanupSwapchain();
         for (size_t i = 0; i < MaxFramesInFlight; i++) {
             vkDestroyFence(m_device, m_fens_in_flight[i], nullptr);
             vkDestroySemaphore(m_device, m_sems_render_finished[i], nullptr);
             vkDestroySemaphore(m_device, m_sems_image_available[i], nullptr);
         }
         vkDestroyCommandPool(m_device, m_cmd_pool, nullptr);
-        for (const auto& framebuffer : m_swapchain_framebuffers) {
-            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-        }
-        vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
-        vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
-        vkDestroyRenderPass(m_device, m_render_pass, nullptr);
-        for (const auto& image_view : m_swapchain_image_views) {
-            vkDestroyImageView(m_device, image_view, nullptr);
-        }
-        vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
         vkDestroyDevice(m_device, nullptr);
         KUMO_DEBUG_ONLY {
             const auto vkDestroyDebugUtilsMessengerEXT =
@@ -122,7 +115,7 @@ namespace Kumo {
             VK_TRUE, std::numeric_limits<UInt64>::max());
 
         UInt32 image_index;
-        vkAcquireNextImageKHR(
+        const VkResult acquisition_result = vkAcquireNextImageKHR(
             m_device,
             m_swapchain,
             std::numeric_limits<UInt64>::max(),
@@ -130,6 +123,17 @@ namespace Kumo {
             VK_NULL_HANDLE,
             &image_index
         );
+
+        switch (acquisition_result) {
+        case VK_ERROR_OUT_OF_DATE_KHR:
+            RecreateSwapchain();
+            return;
+        case VK_SUCCESS:
+        case VK_SUBOPTIMAL_KHR:
+            break;
+        default:
+            throw std::runtime_error("Failed to acquire swapchain image.");
+        }
 
         if (m_fens_images_in_flight[image_index] != VK_NULL_HANDLE) {
             vkWaitForFences(m_device, 1, &m_fens_images_in_flight[image_index],
@@ -166,7 +170,16 @@ namespace Kumo {
             &image_index,
             nullptr
         };
-        vkQueuePresentKHR(m_present_queue, &present_info);
+        const VkResult present_result =
+            vkQueuePresentKHR(m_present_queue, &present_info);
+        if (m_framebuffer_resized
+                || present_result == VK_ERROR_OUT_OF_DATE_KHR
+                || present_result == VK_SUBOPTIMAL_KHR) {
+            m_framebuffer_resized = false;
+            RecreateSwapchain();
+        } else if (present_result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to present swapchain image.");
+        }
         m_current_frame = (m_current_frame + 1) % MaxFramesInFlight;
     }
 
@@ -803,6 +816,38 @@ namespace Kumo {
         }
     }
 
+    void Application::RecreateSwapchain() {
+        vkDeviceWaitIdle(m_device);
+
+        CleanupSwapchain();
+
+        CreateSwapchain();
+        CreateSwapchainImageViews();
+        CreateRenderPass();
+        CreateGraphicsPipeline();
+        CreateFramebuffers();
+        CreateCommandBuffers();
+    }
+
+    void Application::CleanupSwapchain() {
+        for (const auto& framebuffer : m_swapchain_framebuffers) {
+            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+        }
+        vkFreeCommandBuffers(
+            m_device,
+            m_cmd_pool,
+            static_cast<UInt32>(m_cmd_buffers.size()),
+            m_cmd_buffers.data()
+        );
+        vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
+        vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
+        vkDestroyRenderPass(m_device, m_render_pass, nullptr);
+        for (const auto& image_view : m_swapchain_image_views) {
+            vkDestroyImageView(m_device, image_view, nullptr);
+        }
+        vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+    }
+
     bool Application::AreLayersSupported(
             const std::vector<const char*>& layers) const {
         UInt32 n_available_layers;
@@ -955,14 +1000,25 @@ namespace Kumo {
         static constexpr UInt32 SpecVal = std::numeric_limits<UInt32>::max();
         if (capabilities.currentExtent.width != SpecVal)
             return capabilities.currentExtent;
+        
+        int width, height;
+        glfwGetFramebufferSize(m_window, &width, &height);
+        while (width == 0 || height == 0) {
+            glfwWaitEvents();
+            glfwGetFramebufferSize(m_window, &width, &height);
+        }
+        vkDeviceWaitIdle(m_device);
+
         return {
-            std::max(
+            std::clamp(
+                static_cast<UInt32>(width),
                 capabilities.minImageExtent.width,
-                std::min(capabilities.maxImageExtent.width, WindowWidth)
+                capabilities.maxImageExtent.width
             ),
-            std::max(
+            std::clamp(
+                static_cast<UInt32>(height),
                 capabilities.minImageExtent.height,
-                std::min(capabilities.maxImageExtent.height, WindowHeight)
+                capabilities.maxImageExtent.height
             )
         };
     }
@@ -1029,6 +1085,17 @@ namespace Kumo {
                 << ": " << data->pMessage << std::endl;
         }
         return VK_FALSE;
+    }
+
+    void Application::GLFWFramebufferResizeCallback(
+        GLFWwindow* window,
+        int width,
+        int height
+    ) {
+        Application* app = reinterpret_cast<Application*>(
+            glfwGetWindowUserPointer(window)
+        );
+        app->m_framebuffer_resized = true;
     }
 
 }

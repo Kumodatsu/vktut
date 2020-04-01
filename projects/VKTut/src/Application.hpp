@@ -35,7 +35,8 @@ namespace Kumo {
 
         USize m_current_frame = 0;
 
-        GLFWwindow* m_window;
+        GLFWwindow* m_window              = nullptr;
+        bool        m_framebuffer_resized = false;
 
         VkInstance       m_instance;
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
@@ -93,6 +94,9 @@ namespace Kumo {
         void CreateCommandBuffers();
         void CreateSynchronizationObjects();
 
+        void RecreateSwapchain();
+        void CleanupSwapchain();
+
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
         std::vector<const char*> GetRequiredExtensions() const;
@@ -123,6 +127,11 @@ namespace Kumo {
             VkDebugUtilsMessageTypeFlagsEXT             type,
             const VkDebugUtilsMessengerCallbackDataEXT* data,
             void*
+        );
+        static void GLFWFramebufferResizeCallback(
+            GLFWwindow* window,
+            int width,
+            int height
         );
     };
 
