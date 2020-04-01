@@ -31,6 +31,10 @@ namespace Kumo {
         inline static constexpr UInt32 WindowWidth  = 800;
         inline static constexpr UInt32 WindowHeight = 600;
 
+        inline static constexpr USize MaxFramesInFlight = 2;
+
+        USize m_current_frame = 0;
+
         GLFWwindow* m_window;
 
         VkInstance       m_instance;
@@ -58,9 +62,12 @@ namespace Kumo {
 
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
-        VkSemaphore
-            m_sem_image_available,
-            m_sem_render_finished;
+        std::vector<VkSemaphore>
+            m_sems_image_available,
+            m_sems_render_finished;
+        std::vector<VkFence>
+            m_fens_in_flight,
+            m_fens_images_in_flight;
 
         // Debug members
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
@@ -84,7 +91,7 @@ namespace Kumo {
         void CreateFramebuffers();
         void CreateCommandPool();
         void CreateCommandBuffers();
-        void CreateSemaphores();
+        void CreateSynchronizationObjects();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;

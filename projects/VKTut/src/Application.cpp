@@ -69,7 +69,7 @@ namespace Kumo {
         CreateFramebuffers();
         CreateCommandPool();
         CreateCommandBuffers();
-        CreateSemaphores();
+        CreateSynchronizationObjects();
     }
 
     void Application::RunLoop() {
@@ -81,8 +81,11 @@ namespace Kumo {
     }
 
     void Application::Cleanup() {
-        vkDestroySemaphore(m_device, m_sem_render_finished, nullptr);
-        vkDestroySemaphore(m_device, m_sem_image_available, nullptr);
+        for (size_t i = 0; i < MaxFramesInFlight; i++) {
+            vkDestroyFence(m_device, m_fens_in_flight[i], nullptr);
+            vkDestroySemaphore(m_device, m_sems_render_finished[i], nullptr);
+            vkDestroySemaphore(m_device, m_sems_image_available[i], nullptr);
+        }
         vkDestroyCommandPool(m_device, m_cmd_pool, nullptr);
         for (const auto& framebuffer : m_swapchain_framebuffers) {
             vkDestroyFramebuffer(m_device, framebuffer, nullptr);
@@ -115,43 +118,56 @@ namespace Kumo {
     }
 
     void Application::DrawFrame() {
+        vkWaitForFences(m_device, 1, &m_fens_in_flight[m_current_frame],
+            VK_TRUE, std::numeric_limits<UInt64>::max());
+
         UInt32 image_index;
         vkAcquireNextImageKHR(
             m_device,
             m_swapchain,
             std::numeric_limits<UInt64>::max(),
-            m_sem_image_available,
+            m_sems_image_available[m_current_frame],
             VK_NULL_HANDLE,
             &image_index
         );
+
+        if (m_fens_images_in_flight[image_index] != VK_NULL_HANDLE) {
+            vkWaitForFences(m_device, 1, &m_fens_images_in_flight[image_index],
+                VK_TRUE, std::numeric_limits<UInt64>::max());
+        }
+
         const VkPipelineStageFlags wait_stages =
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         const VkSubmitInfo submit_info {
             VK_STRUCTURE_TYPE_SUBMIT_INFO,
             nullptr,
             1,
-            &m_sem_image_available,
+            &m_sems_image_available[m_current_frame],
             &wait_stages,
             1,
             &m_cmd_buffers[image_index],
             1,
-            &m_sem_render_finished
+            &m_sems_render_finished[m_current_frame]
         };
-        if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE)
-                != VK_SUCCESS) {
+
+        vkResetFences(m_device, 1, &m_fens_in_flight[m_current_frame]);
+        
+        if (vkQueueSubmit(m_graphics_queue, 1, &submit_info,
+                m_fens_in_flight[m_current_frame]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to submit draw command buffer.");
         }
         const VkPresentInfoKHR present_info {
             VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             nullptr,
             1,
-            &m_sem_render_finished,
+            &m_sems_render_finished[m_current_frame],
             1,
             &m_swapchain,
             &image_index,
             nullptr
         };
         vkQueuePresentKHR(m_present_queue, &present_info);
+        m_current_frame = (m_current_frame + 1) % MaxFramesInFlight;
     }
 
     void Application::CreateInstance() {
@@ -758,17 +774,32 @@ namespace Kumo {
         }
     }
 
-    void Application::CreateSemaphores() {
+    void Application::CreateSynchronizationObjects() {
+        m_sems_image_available.resize(MaxFramesInFlight);
+        m_sems_render_finished.resize(MaxFramesInFlight);
+        m_fens_in_flight.resize(MaxFramesInFlight);
+        m_fens_images_in_flight.resize(m_swapchain_images.size(),
+            VK_NULL_HANDLE);
+
         const VkSemaphoreCreateInfo semaphore_info {
             VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             nullptr,
             0
         };
-        if (vkCreateSemaphore(m_device, &semaphore_info, nullptr,
-                &m_sem_image_available) != VK_SUCCESS
-                || vkCreateSemaphore(m_device, &semaphore_info, nullptr,
-                    &m_sem_render_finished) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create semaphores.");
+        const VkFenceCreateInfo fence_info {
+            VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            nullptr,
+            VK_FENCE_CREATE_SIGNALED_BIT
+        };
+        for (size_t i = 0; i < MaxFramesInFlight; i++) {
+            if (vkCreateSemaphore(m_device, &semaphore_info, nullptr,
+                    &m_sems_image_available[i]) != VK_SUCCESS
+                    || vkCreateSemaphore(m_device, &semaphore_info, nullptr,
+                        &m_sems_render_finished[i]) != VK_SUCCESS
+                    || vkCreateFence(m_device, &fence_info, nullptr,
+                        &m_fens_in_flight[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create semaphores.");
+            }
         }
     }
 
