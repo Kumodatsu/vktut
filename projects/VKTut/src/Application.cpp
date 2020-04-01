@@ -287,18 +287,25 @@ namespace Kumo {
             throw std::runtime_error("Found no GPU with Vulkan support.");
         std::vector<VkPhysicalDevice> devices(n_devices);
         vkEnumeratePhysicalDevices(m_instance, &n_devices, devices.data());
+        std::optional<VkPhysicalDeviceProperties> device_properties =
+            std::nullopt;
+        std::cout << "Available devices:" << std::endl;
         for (const auto& device : devices) {
             VkPhysicalDeviceProperties properties;
             VkPhysicalDeviceFeatures   features;
-            if (IsPhysicalDeviceSuitable(device, properties, features)) {
+            const bool suitable = IsPhysicalDeviceSuitable(device, properties, features);
+            std::cout << "\t" << properties.deviceName << std::endl;
+            if (!device_properties && suitable) {
                 m_physical_device = device;
-                std::cout << "Using device:" << std::endl
-                    << "\t" << properties.deviceName << std::endl;
-                return;
+                device_properties = properties;
+                break;
             }
         }
-        
-        throw std::runtime_error("Found no suitable GPU.");
+        if (!device_properties)
+            throw std::runtime_error("Found no suitable GPU.");
+
+        std::cout << "Using device:" << std::endl
+            << "\t" << device_properties->deviceName << std::endl;
     }
 
     void Application::CreateLogicalDevice() {
