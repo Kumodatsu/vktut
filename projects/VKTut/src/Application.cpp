@@ -817,6 +817,12 @@ namespace Kumo {
     }
 
     void Application::RecreateSwapchain() {
+        int width, height;
+        glfwGetFramebufferSize(m_window, &width, &height);
+        while (width == 0 || height == 0) {
+            glfwWaitEvents();
+            glfwGetFramebufferSize(m_window, &width, &height);
+        }
         vkDeviceWaitIdle(m_device);
 
         CleanupSwapchain();
@@ -1003,11 +1009,6 @@ namespace Kumo {
         
         int width, height;
         glfwGetFramebufferSize(m_window, &width, &height);
-        while (width == 0 || height == 0) {
-            glfwWaitEvents();
-            glfwGetFramebufferSize(m_window, &width, &height);
-        }
-        vkDeviceWaitIdle(m_device);
 
         return {
             std::clamp(
