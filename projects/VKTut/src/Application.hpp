@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include "System/Window.hpp"
 
 namespace Kumo {
 
@@ -23,20 +24,16 @@ namespace Kumo {
 
     class Application {
     public:
-        Application() = default;
+        Application();
         ~Application();
 
         void Run();
     private:
-        inline static constexpr UInt32 WindowWidth  = 800;
-        inline static constexpr UInt32 WindowHeight = 600;
-
         inline static constexpr USize MaxFramesInFlight = 2;
 
         USize m_current_frame = 0;
 
-        GLFWwindow* m_window              = nullptr;
-        bool        m_framebuffer_resized = false;
+        Window      m_window;
 
         VkInstance       m_instance;
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
@@ -81,7 +78,6 @@ namespace Kumo {
         VkDebugUtilsMessengerCreateInfoEXT m_debug_messenger_create_info;
         VkDebugUtilsMessengerEXT           m_debug_messenger;
 
-        void InitializeWindow();
         void InitializeVulkan();
         void RunLoop();
         void Cleanup();

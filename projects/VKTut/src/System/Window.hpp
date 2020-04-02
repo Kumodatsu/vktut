@@ -9,8 +9,12 @@ namespace Kumo {
         UInt32 Width;
         UInt32 Height;
 
-        inline explicit operator VkExtent2D() {
+        inline explicit operator VkExtent2D() const {
             return { Width, Height };
+        }
+
+        inline bool IsEmpty() const {
+            return Width == 0 || Height == 0;
         }
     };
 
@@ -24,8 +28,14 @@ namespace Kumo {
         bool ShouldClose() const;
 
         void Update();
+        bool QueryFramebufferResized();
+        
+        inline GLFWwindow* GetHandle() {
+            return m_handle;
+        }
     private:
-        GLFWwindow* m_window;
+        GLFWwindow* m_handle;
+        bool        m_framebuffer_resized;
 
         static UInt32 s_n_windows;
         static void CallbackFramebufferResized(GLFWwindow* window, int width,

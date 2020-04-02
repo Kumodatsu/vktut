@@ -24,37 +24,18 @@ namespace Kumo {
         0, 1, 2, 2, 3, 0
     };
 
+    Application::Application()
+        : m_window("Vulkan", 800, 600)
+    { }
+
     Application::~Application() {
 
     }
 
     void Application::Run() {
-        InitializeWindow();
         InitializeVulkan();
         RunLoop();
         Cleanup();
-    }
-
-    void Application::InitializeWindow() {
-        const int init_success = glfwInit();
-        if (!init_success)
-            throw std::runtime_error("Failed to initialize GLFW.");
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE,  GLFW_TRUE);
-
-        m_window = glfwCreateWindow(
-            static_cast<int>(WindowWidth),
-            static_cast<int>(WindowHeight),
-            "Vulkan",
-            nullptr,
-            nullptr
-        );
-
-        if (!m_window)
-            throw std::runtime_error("Failed to create window.");
-        glfwSetWindowUserPointer(m_window, this);
-        glfwSetFramebufferSizeCallback(m_window, GLFWFramebufferResizeCallback);
     }
 
     void Application::InitializeVulkan() {
@@ -89,8 +70,8 @@ namespace Kumo {
     }
 
     void Application::RunLoop() {
-        while (!glfwWindowShouldClose(m_window)) {
-            glfwPollEvents();
+        while (!m_window.ShouldClose()) {
+            m_window.Update();
             DrawFrame();
         }
         vkDeviceWaitIdle(m_device);
@@ -124,8 +105,6 @@ namespace Kumo {
         }
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         vkDestroyInstance(m_instance, nullptr);
-        glfwDestroyWindow(m_window);
-        glfwTerminate();
     }
 
     void Application::DrawFrame() {
@@ -190,10 +169,9 @@ namespace Kumo {
         };
         const VkResult present_result =
             vkQueuePresentKHR(m_present_queue, &present_info);
-        if (m_framebuffer_resized
+        if (m_window.QueryFramebufferResized()
                 || present_result == VK_ERROR_OUT_OF_DATE_KHR
                 || present_result == VK_SUBOPTIMAL_KHR) {
-            m_framebuffer_resized = false;
             RecreateSwapchain();
         } else if (present_result != VK_SUCCESS) {
             throw std::runtime_error("Failed to present swapchain image.");
@@ -292,7 +270,7 @@ namespace Kumo {
     }
 
     void Application::CreateSurface() {
-        if (glfwCreateWindowSurface(m_instance, m_window, nullptr,
+        if (glfwCreateWindowSurface(m_instance, m_window.GetHandle(), nullptr,
                 &m_surface) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create window surface.");
         }
@@ -929,11 +907,10 @@ namespace Kumo {
     }
 
     void Application::RecreateSwapchain() {
-        int width, height;
-        glfwGetFramebufferSize(m_window, &width, &height);
-        while (width == 0 || height == 0) {
+        WindowExtent extent = m_window.GetExtent();
+        while (extent.IsEmpty()) {
             glfwWaitEvents();
-            glfwGetFramebufferSize(m_window, &width, &height);
+            extent = m_window.GetExtent();
         }
         vkDeviceWaitIdle(m_device);
 
@@ -1119,17 +1096,16 @@ namespace Kumo {
         if (capabilities.currentExtent.width != SpecVal)
             return capabilities.currentExtent;
         
-        int width, height;
-        glfwGetFramebufferSize(m_window, &width, &height);
+        WindowExtent extent = m_window.GetExtent();
 
         return {
             std::clamp(
-                static_cast<UInt32>(width),
+                extent.Width,
                 capabilities.minImageExtent.width,
                 capabilities.maxImageExtent.width
             ),
             std::clamp(
-                static_cast<UInt32>(height),
+                extent.Height,
                 capabilities.minImageExtent.height,
                 capabilities.maxImageExtent.height
             )
@@ -1298,17 +1274,6 @@ namespace Kumo {
                 << ": " << data->pMessage << std::endl;
         }
         return VK_FALSE;
-    }
-
-    void Application::GLFWFramebufferResizeCallback(
-        GLFWwindow* window,
-        int width,
-        int height
-    ) {
-        Application* app = reinterpret_cast<Application*>(
-            glfwGetWindowUserPointer(window)
-        );
-        app->m_framebuffer_resized = true;
     }
 
 }
