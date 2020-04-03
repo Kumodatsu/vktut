@@ -89,6 +89,8 @@ namespace Kumo {
         CreateFramebuffers();
         CreateCommandPool();
         CreateTextureImage("res/textures/bricks.png");
+        CreateTextureImageView();
+        CreateTextureSampler();
         CreateVertexBuffer();
         CreateIndexBuffer();
         CreateUniformBuffers();
@@ -108,6 +110,8 @@ namespace Kumo {
 
     void Application::Cleanup() {
         CleanupSwapchain();
+        vkDestroySampler(m_device, m_texture_sampler, nullptr);
+        vkDestroyImageView(m_device, m_texture_image_view, nullptr);
         vkDestroyImage(m_device, m_texture_image, nullptr);
         vkFreeMemory(m_device, m_mem_texture_image, nullptr);
         vkDestroyDescriptorSetLayout(m_device, m_descriptor_set_layout,
@@ -395,7 +399,8 @@ namespace Kumo {
             };
             queue_create_infos.push_back(queue_create_info);
         }
-        const VkPhysicalDeviceFeatures features { };
+        VkPhysicalDeviceFeatures features { };
+        features.samplerAnisotropy = VK_TRUE;
         std::vector<const char*> layers;
         KUMO_DEBUG_ONLY {
             // Validation layers are assumed to be available
@@ -902,6 +907,36 @@ namespace Kumo {
         vkFreeMemory(m_device, mem_staging_buffer, nullptr);
     }
 
+    void Application::CreateTextureImageView() {
+        static constexpr VkComponentMapping def_component_mapping{
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY
+        };
+        static constexpr VkImageSubresourceRange def_subresource_range {
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            0,
+            1,
+            0,
+            1
+        };
+        const VkImageViewCreateInfo view_info {
+            VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            nullptr,
+            0,
+            m_texture_image,
+            VK_IMAGE_VIEW_TYPE_2D,
+            VK_FORMAT_R8G8B8A8_SRGB,
+            def_component_mapping,
+            def_subresource_range
+        };
+        if (vkCreateImageView(m_device, &view_info, nullptr,
+                &m_texture_image_view) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create texture image view.");
+        }
+    }
+
     void Application::CreateImage(UInt32 width, UInt32 height, VkFormat format,
             VkImageTiling tiling, VkImageUsageFlags usage,
             VkMemoryPropertyFlags properties, VkImage& out_image,
@@ -1231,6 +1266,33 @@ namespace Kumo {
         vkDestroyDescriptorPool(m_device, m_descriptor_pool, nullptr);
     }
 
+    void Application::CreateTextureSampler() {
+        const VkSamplerCreateInfo sampler_info {
+            VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            nullptr,
+            0,
+            VK_FILTER_LINEAR,
+            VK_FILTER_LINEAR,
+            VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            0.0f,
+            VK_TRUE,
+            16.0f,
+            VK_FALSE,
+            VK_COMPARE_OP_ALWAYS,
+            0.0f,
+            0.0f,
+            VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+            VK_FALSE
+        };
+        if (vkCreateSampler(m_device, &sampler_info, nullptr,
+                &m_texture_sampler) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create texture sampler.");
+        }
+    }
+
     bool Application::AreLayersSupported(
             const std::vector<const char*>& layers) const {
         UInt32 n_available_layers;
@@ -1283,10 +1345,12 @@ namespace Kumo {
                 =  !swapchain_support_info.Formats.empty()
                 && !swapchain_support_info.PresentModes.empty();
         }
+        bool feature_complete = features.samplerAnisotropy;
 
         return queue_family_indices.IsComplete()
             && extensions_supported
-            && swapchain_is_adequate;
+            && swapchain_is_adequate
+            && feature_complete;
     }
 
     QueueFamilyIndices Application::FindQueueFamilies(

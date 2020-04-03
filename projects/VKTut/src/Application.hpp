@@ -86,6 +86,8 @@ namespace Kumo {
 
         VkImage        m_texture_image;
         VkDeviceMemory m_mem_texture_image;
+        VkImageView    m_texture_image_view;
+        VkSampler      m_texture_sampler;
 
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
@@ -130,11 +132,13 @@ namespace Kumo {
         void RecreateSwapchain();
         void CleanupSwapchain();
 
+        void CreateTextureImageView();
         void CreateTextureImage(const std::string& path);
         void CreateImage(UInt32 width, UInt32 height, VkFormat format,
             VkImageTiling tiling, VkImageUsageFlags usage,
             VkMemoryPropertyFlags properties, VkImage& out_image,
             VkDeviceMemory& out_memory) const;
+        void CreateTextureSampler();
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
