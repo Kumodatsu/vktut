@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 namespace Kumo {
 
@@ -19,6 +20,12 @@ namespace Kumo {
         VkSurfaceCapabilitiesKHR        Capabilities = {};
         std::vector<VkSurfaceFormatKHR> Formats;
         std::vector<VkPresentModeKHR>   PresentModes;
+    };
+
+    struct UniformBufferObject {
+        glm::mat4 Model;
+        glm::mat4 View;
+        glm::mat4 Projection;
     };
 
     class Application {
@@ -56,17 +63,26 @@ namespace Kumo {
         VkExtent2D                 m_swapchain_extent;
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
 
-        VkRenderPass     m_render_pass;
-        VkPipelineLayout m_pipeline_layout;
-        VkPipeline       m_graphics_pipeline;
-        VkCommandPool    m_cmd_pool;
+        VkRenderPass          m_render_pass;
+        VkDescriptorSetLayout m_descriptor_set_layout;
+        VkPipelineLayout      m_pipeline_layout;
+        VkPipeline            m_graphics_pipeline;
+        VkCommandPool         m_cmd_pool;
+        VkDescriptorPool      m_descriptor_pool;
+        
+        std::vector<VkDescriptorSet>
+            m_descriptor_sets; // implicitly destroyed with descriptor pool
 
         VkDeviceMemory
             m_mem_vertex_buffer,
             m_mem_index_buffer;
+        std::vector<VkDeviceMemory>
+            m_mems_uniform_buffers;
         VkBuffer
             m_vertex_buffer,
             m_index_buffer;
+        std::vector<VkBuffer>
+            m_uniform_buffers;
 
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
@@ -87,6 +103,7 @@ namespace Kumo {
         void Cleanup();
 
         void DrawFrame();
+        void UpdateUniformBuffer(UInt32 current_image);
 
         void CreateInstance();
         void CreateSurface();
@@ -95,11 +112,15 @@ namespace Kumo {
         void CreateSwapchain();
         void CreateSwapchainImageViews();
         void CreateRenderPass();
+        void CreateDescriptorSetLayout();
         void CreateGraphicsPipeline();
         void CreateFramebuffers();
         void CreateCommandPool();
         void CreateVertexBuffer();
         void CreateIndexBuffer();
+        void CreateUniformBuffers();
+        void CreateDescriptorPool();
+        void CreateDescriptorSets();
         void CreateCommandBuffers();
         void CreateSynchronizationObjects();
 

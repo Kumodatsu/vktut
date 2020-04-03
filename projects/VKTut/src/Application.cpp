@@ -3,6 +3,8 @@
 #include "IO.hpp"
 #include "Vertex.hpp"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 namespace Kumo {
 
     static const std::vector<const char*> ValidationLayers {
@@ -21,7 +23,8 @@ namespace Kumo {
     };
 
     static const std::vector<UInt16> Indices {
-        0, 1, 2, 2, 3, 0
+        // 0, 1, 2, 2, 3, 0
+        2, 1, 0, 0, 3, 2
     };
 
     Application::~Application() {
@@ -79,11 +82,15 @@ namespace Kumo {
         CreateSwapchain();
         CreateSwapchainImageViews();
         CreateRenderPass();
+        CreateDescriptorSetLayout();
         CreateGraphicsPipeline();
         CreateFramebuffers();
         CreateCommandPool();
         CreateVertexBuffer();
         CreateIndexBuffer();
+        CreateUniformBuffers();
+        CreateDescriptorPool();
+        CreateDescriptorSets();
         CreateCommandBuffers();
         CreateSynchronizationObjects();
     }
@@ -98,6 +105,8 @@ namespace Kumo {
 
     void Application::Cleanup() {
         CleanupSwapchain();
+        vkDestroyDescriptorSetLayout(m_device, m_descriptor_set_layout,
+            nullptr);
         vkDestroyBuffer(m_device, m_index_buffer, nullptr);
         vkFreeMemory(m_device, m_mem_index_buffer, nullptr);
         vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
@@ -158,6 +167,8 @@ namespace Kumo {
                 VK_TRUE, std::numeric_limits<UInt64>::max());
         }
 
+        UpdateUniformBuffer(image_index);
+
         const VkPipelineStageFlags wait_stages =
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         const VkSubmitInfo submit_info {
@@ -199,6 +210,40 @@ namespace Kumo {
             throw std::runtime_error("Failed to present swapchain image.");
         }
         m_current_frame = (m_current_frame + 1) % MaxFramesInFlight;
+    }
+
+    void Application::UpdateUniformBuffer(UInt32 current_image) {
+        static auto start_time = std::chrono::high_resolution_clock::now();
+        auto current_time = std::chrono::high_resolution_clock::now();
+        const float dt =
+            std::chrono::duration<float, std::chrono::seconds::period>(
+                current_time - start_time
+            ).count();
+
+        UniformBufferObject ubo;
+        ubo.Model = glm::rotate(
+            glm::mat4(1.0f),
+            dt * glm::radians(90.0f),
+            glm::vec3(0.0f, 0.0f, 1.0f)
+        );
+        ubo.View = glm::lookAt(
+            glm::vec3(2.0f, 2.0f, 2.0f),
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 0.0f, 1.0f)
+        );
+        ubo.Projection = glm::perspective(
+            glm::radians(45.0f),
+            m_swapchain_extent.width
+                / static_cast<float>(m_swapchain_extent.height),
+            0.1f,
+            10.0f
+        );
+        ubo.Projection[1][1] *= -1.0f;
+        void* data;
+        vkMapMemory(m_device, m_mems_uniform_buffers[current_image], 0,
+            sizeof(UniformBufferObject), 0, &data);
+        memcpy(data, &ubo, sizeof(UniformBufferObject));
+        vkUnmapMemory(m_device, m_mems_uniform_buffers[current_image]);
     }
 
     void Application::CreateInstance() {
@@ -546,6 +591,27 @@ namespace Kumo {
         }
     }
 
+    void Application::CreateDescriptorSetLayout() {
+        const VkDescriptorSetLayoutBinding ubo_layout_binding {
+            0,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            1,
+            VK_SHADER_STAGE_VERTEX_BIT,
+            nullptr
+        };
+        const VkDescriptorSetLayoutCreateInfo layout_info {
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            nullptr,
+            0,
+            1,
+            &ubo_layout_binding
+        };
+        if (vkCreateDescriptorSetLayout(m_device, &layout_info, nullptr,
+                &m_descriptor_set_layout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set layout.");
+        }
+    }
+
     void Application::CreateGraphicsPipeline() {
         const auto vertex_shader_bytecode =
             IO::ReadBinaryFile("res/shaders/vertex_shader.spv");
@@ -696,8 +762,8 @@ namespace Kumo {
             VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             nullptr,
             0,
-            0,
-            nullptr,
+            1,
+            &m_descriptor_set_layout,
             0,
             nullptr
         };
@@ -840,6 +906,81 @@ namespace Kumo {
         vkFreeMemory(m_device, mem_staging_buffer, nullptr);
     }
 
+    void Application::CreateUniformBuffers() {
+        const VkDeviceSize buffer_size = sizeof(UniformBufferObject);
+        m_uniform_buffers.resize(m_swapchain_images.size());
+        m_mems_uniform_buffers.resize(m_swapchain_images.size());
+        for (USize i = 0; i < m_swapchain_images.size(); i++) {
+            CreateBuffer(
+                buffer_size,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                m_uniform_buffers[i],
+                m_mems_uniform_buffers[i]
+            );
+        }
+    }
+
+    void Application::CreateDescriptorPool() {
+        const VkDescriptorPoolSize pool_size {
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            static_cast<UInt32>(m_swapchain_images.size())
+        };
+        const VkDescriptorPoolCreateInfo pool_info {
+            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            nullptr,
+            0,
+            static_cast<UInt32>(m_swapchain_images.size()),
+            1,
+            &pool_size
+        };
+        if (vkCreateDescriptorPool(m_device, &pool_info, nullptr,
+                &m_descriptor_pool) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor pool.");
+        }
+    }
+
+    void Application::CreateDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(
+            m_swapchain_images.size(),
+            m_descriptor_set_layout
+        );
+        const VkDescriptorSetAllocateInfo allocation_info {
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            nullptr,
+            m_descriptor_pool,
+            static_cast<UInt32>(m_swapchain_images.size()),
+            layouts.data()
+        };
+        m_descriptor_sets.resize(m_swapchain_images.size());
+        if (vkAllocateDescriptorSets(m_device, &allocation_info,
+                m_descriptor_sets.data()) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate descriptor sets.");
+        }
+        for (USize i = 0; i < m_swapchain_images.size(); i++) {
+            const VkDescriptorBufferInfo buffer_info {
+                m_uniform_buffers[i],
+                0,
+                sizeof(UniformBufferObject)
+            };
+            const VkWriteDescriptorSet descriptor_set_write {
+                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                nullptr,
+                m_descriptor_sets[i],
+                0,
+                0,
+                1,
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                nullptr,
+                &buffer_info,
+                nullptr
+            };
+            vkUpdateDescriptorSets(m_device, 1, &descriptor_set_write,
+                0, nullptr);
+        }
+    }
+
     void Application::CreateCommandBuffers() {
         m_cmd_buffers.resize(m_swapchain_framebuffers.size());
         const VkCommandBufferAllocateInfo allocation_info {
@@ -889,6 +1030,16 @@ namespace Kumo {
                     &offset);
                 vkCmdBindIndexBuffer(buffer, m_index_buffer, 0,
                     VK_INDEX_TYPE_UINT16);
+                vkCmdBindDescriptorSets(
+                    buffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    m_pipeline_layout,
+                    0,
+                    1,
+                    &m_descriptor_sets[i],
+                    0,
+                    nullptr
+                );
                 vkCmdDrawIndexed(buffer, static_cast<UInt32>(Indices.size()),
                     1, 0, 0, 0);
             }
@@ -944,6 +1095,9 @@ namespace Kumo {
         CreateRenderPass();
         CreateGraphicsPipeline();
         CreateFramebuffers();
+        CreateUniformBuffers();
+        CreateDescriptorPool();
+        CreateDescriptorSets();
         CreateCommandBuffers();
     }
 
@@ -964,6 +1118,11 @@ namespace Kumo {
             vkDestroyImageView(m_device, image_view, nullptr);
         }
         vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+        for (USize i = 0; i < m_swapchain_images.size(); i++) {
+            vkDestroyBuffer(m_device, m_uniform_buffers[i], nullptr);
+            vkFreeMemory(m_device, m_mems_uniform_buffers[i], nullptr);
+        }
+        vkDestroyDescriptorPool(m_device, m_descriptor_pool, nullptr);
     }
 
     bool Application::AreLayersSupported(
