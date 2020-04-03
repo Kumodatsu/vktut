@@ -18,10 +18,10 @@ namespace Kumo {
     };
 
     static const std::vector<Vertex> Vertices {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
     };
 
     static const std::vector<UInt16> Indices {
@@ -602,19 +602,28 @@ namespace Kumo {
     }
 
     void Application::CreateDescriptorSetLayout() {
-        const VkDescriptorSetLayoutBinding ubo_layout_binding {
-            0,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            1,
-            VK_SHADER_STAGE_VERTEX_BIT,
-            nullptr
-        };
+        const std::array<VkDescriptorSetLayoutBinding, 2> ubo_layout_bindings {{
+            {
+                0,
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                1,
+                VK_SHADER_STAGE_VERTEX_BIT,
+                nullptr
+            },
+            {
+                1,
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                1,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                nullptr
+            }
+        }};
         const VkDescriptorSetLayoutCreateInfo layout_info {
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             nullptr,
             0,
-            1,
-            &ubo_layout_binding
+            static_cast<UInt32>(ubo_layout_bindings.size()),
+            ubo_layout_bindings.data()
         };
         if (vkCreateDescriptorSetLayout(m_device, &layout_info, nullptr,
                 &m_descriptor_set_layout) != VK_SUCCESS) {
@@ -1064,17 +1073,23 @@ namespace Kumo {
     }
 
     void Application::CreateDescriptorPool() {
-        const VkDescriptorPoolSize pool_size {
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            static_cast<UInt32>(m_swapchain_images.size())
-        };
+        const std::array<VkDescriptorPoolSize, 2> pool_sizes {{
+            {
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                static_cast<UInt32>(m_swapchain_images.size())
+            },
+            {
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                static_cast<UInt32>(m_swapchain_images.size())
+            }
+        }};
         const VkDescriptorPoolCreateInfo pool_info {
             VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             nullptr,
             0,
             static_cast<UInt32>(m_swapchain_images.size()),
-            1,
-            &pool_size
+            static_cast<UInt32>(pool_sizes.size()),
+            pool_sizes.data()
         };
         if (vkCreateDescriptorPool(m_device, &pool_info, nullptr,
                 &m_descriptor_pool) != VK_SUCCESS) {
@@ -1105,20 +1120,44 @@ namespace Kumo {
                 0,
                 sizeof(UniformBufferObject)
             };
-            const VkWriteDescriptorSet descriptor_set_write {
-                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                nullptr,
-                m_descriptor_sets[i],
-                0,
-                0,
-                1,
-                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                nullptr,
-                &buffer_info,
-                nullptr
+            const VkDescriptorImageInfo image_info {
+                m_texture_sampler,
+                m_texture_image_view,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             };
-            vkUpdateDescriptorSets(m_device, 1, &descriptor_set_write,
-                0, nullptr);
+            const std::array<VkWriteDescriptorSet, 2> descriptor_set_writes {{
+                {
+                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    nullptr,
+                    m_descriptor_sets[i],
+                    0,
+                    0,
+                    1,
+                    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    nullptr,
+                    &buffer_info,
+                    nullptr
+                },
+                {
+                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    nullptr,
+                    m_descriptor_sets[i],
+                    1,
+                    0,
+                    1,
+                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    &image_info,
+                    nullptr,
+                    nullptr
+                }
+            }};
+            vkUpdateDescriptorSets(
+                m_device,
+                static_cast<UInt32>(descriptor_set_writes.size()),
+                descriptor_set_writes.data(),
+                0,
+                nullptr
+            );
         }
     }
 
