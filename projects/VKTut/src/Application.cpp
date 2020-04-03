@@ -3,6 +3,8 @@
 #include "IO.hpp"
 #include "Vertex.hpp"
 
+#include "STB/stb_image.h"
+
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Kumo {
@@ -86,6 +88,7 @@ namespace Kumo {
         CreateGraphicsPipeline();
         CreateFramebuffers();
         CreateCommandPool();
+        CreateTextureImage("res/textures/bricks.png");
         CreateVertexBuffer();
         CreateIndexBuffer();
         CreateUniformBuffers();
@@ -105,6 +108,8 @@ namespace Kumo {
 
     void Application::Cleanup() {
         CleanupSwapchain();
+        vkDestroyImage(m_device, m_texture_image, nullptr);
+        vkFreeMemory(m_device, m_mem_texture_image, nullptr);
         vkDestroyDescriptorSetLayout(m_device, m_descriptor_set_layout,
             nullptr);
         vkDestroyBuffer(m_device, m_index_buffer, nullptr);
@@ -838,6 +843,107 @@ namespace Kumo {
         }
     }
 
+    void Application::CreateTextureImage(const std::string& path) {
+        int width, height, n_channels;
+        stbi_uc* pixels = stbi_load(path.c_str(), &width, &height, &n_channels,
+            STBI_rgb_alpha);
+        if (!pixels) {
+            throw std::runtime_error("Failed to load texture image.");
+        }
+        const VkDeviceSize size = width * height * 4;
+
+        VkBuffer staging_buffer;
+        VkDeviceMemory mem_staging_buffer;
+        CreateBuffer(
+            size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            staging_buffer,
+            mem_staging_buffer
+        );
+        void* data;
+        vkMapMemory(m_device, mem_staging_buffer, 0, size, 0, &data);
+        memcpy(data, pixels, static_cast<USize>(size));
+        vkUnmapMemory(m_device, mem_staging_buffer);
+        stbi_image_free(pixels);
+
+        CreateImage(
+            static_cast<UInt32>(width),
+            static_cast<UInt32>(height),
+            VK_FORMAT_R8G8B8A8_SRGB,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            m_texture_image,
+            m_mem_texture_image
+        );
+
+        TransitionImageLayout(
+            m_texture_image,
+            VK_FORMAT_R8G8B8A8_SRGB,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+        );
+        CopyBufferToImage(
+            staging_buffer,
+            m_texture_image,
+            static_cast<UInt32>(width),
+            static_cast<UInt32>(height)
+        );
+        TransitionImageLayout(
+            m_texture_image,
+            VK_FORMAT_R8G8B8A8_SRGB,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        );
+
+        vkDestroyBuffer(m_device, staging_buffer, nullptr);
+        vkFreeMemory(m_device, mem_staging_buffer, nullptr);
+    }
+
+    void Application::CreateImage(UInt32 width, UInt32 height, VkFormat format,
+            VkImageTiling tiling, VkImageUsageFlags usage,
+            VkMemoryPropertyFlags properties, VkImage& out_image,
+            VkDeviceMemory& out_memory) const {
+        const VkImageCreateInfo image_info {
+            VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            nullptr,
+            0,
+            VK_IMAGE_TYPE_2D,
+            format,
+            {static_cast<UInt32>(width), static_cast<UInt32>(height), 1},
+            1,
+            1,
+            VK_SAMPLE_COUNT_1_BIT,
+            tiling,
+            usage,
+            VK_SHARING_MODE_EXCLUSIVE,
+            0,
+            nullptr,
+            VK_IMAGE_LAYOUT_UNDEFINED
+        };
+        if (vkCreateImage(m_device, &image_info, nullptr, &out_image)
+                != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create image.");
+        }
+        VkMemoryRequirements memory_requirements;
+        vkGetImageMemoryRequirements(m_device, out_image,
+            &memory_requirements);
+        const VkMemoryAllocateInfo allocation_info {
+            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            nullptr,
+            memory_requirements.size,
+            SelectMemoryType(memory_requirements.memoryTypeBits,
+                properties)
+        };
+        if (vkAllocateMemory(m_device, &allocation_info, nullptr,
+                &out_memory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate image memory.");
+        }
+        vkBindImageMemory(m_device, out_image, out_memory, 0);
+    }
+
     void Application::CreateVertexBuffer() {
         const VkDeviceSize buffer_size = sizeof(Vertex) * Vertices.size();
 
@@ -1330,6 +1436,89 @@ namespace Kumo {
         throw std::runtime_error("Failed to find suitable memory type.");
     }
 
+    void Application::TransitionImageLayout(VkImage image, VkFormat format,
+            VkImageLayout old_layout, VkImageLayout new_layout) const {
+        VkAccessFlags src_access_mask, dst_access_mask;
+        VkPipelineStageFlags src_stage, dst_stage;
+
+        if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED
+                && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+            src_access_mask = 0;
+            dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            src_stage       = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            dst_stage       = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+                && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+            src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
+            src_stage       = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            dst_stage       = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        } else {
+            throw std::invalid_argument("Unsupported layout transition.");
+        }
+
+        const VkImageMemoryBarrier barrier {
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            nullptr,
+            src_access_mask,
+            dst_access_mask,
+            old_layout,
+            new_layout,
+            VK_QUEUE_FAMILY_IGNORED,
+            VK_QUEUE_FAMILY_IGNORED,
+            image,
+            {
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                0,
+                1,
+                0,
+                1
+            }
+        };
+        
+        const VkCommandBuffer cmd_buffer = BeginSingleTimeCommands();
+
+        vkCmdPipelineBarrier(
+            cmd_buffer,
+            src_stage,
+            dst_stage,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &barrier
+        );
+
+        EndSingleTimeCommands(cmd_buffer);
+    }
+
+    void Application::CopyBufferToImage(const VkBuffer& buffer,
+            const VkImage& image, UInt32 width, UInt32 height) const {
+        const VkBufferImageCopy region {
+            0,
+            0,
+            0,
+            {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+            {0, 0, 0},
+            {width, height, 1}
+        };
+        
+        const VkCommandBuffer cmd_buffer = BeginSingleTimeCommands();
+
+        vkCmdCopyBufferToImage(
+            cmd_buffer,
+            buffer,
+            image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &region
+        );
+
+        EndSingleTimeCommands(cmd_buffer);
+    }
+
     void Application::CreateBuffer(
         VkDeviceSize size,
         VkBufferUsageFlags usage_flags,
@@ -1374,6 +1563,15 @@ namespace Kumo {
 
     void Application::CopyBuffer(const VkBuffer& src, const VkBuffer& dst,
             VkDeviceSize size) const {
+        const VkCommandBuffer cmd_buffer = BeginSingleTimeCommands();
+        
+        const VkBufferCopy copy_region { 0, 0, size };
+        vkCmdCopyBuffer(cmd_buffer, src, dst, 1, &copy_region);
+        
+        EndSingleTimeCommands(cmd_buffer);        
+    }
+
+    VkCommandBuffer Application::BeginSingleTimeCommands() const {
         const VkCommandBufferAllocateInfo allocation_info {
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
             nullptr,
@@ -1389,12 +1587,13 @@ namespace Kumo {
             VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             nullptr
         };
-
         vkBeginCommandBuffer(cmd_buffer, &begin_info);
-            const VkBufferCopy copy_region { 0, 0, size };
-            vkCmdCopyBuffer(cmd_buffer, src, dst, 1, &copy_region);
-        vkEndCommandBuffer(cmd_buffer);
+        return cmd_buffer;
+    }
 
+    void Application::EndSingleTimeCommands(const VkCommandBuffer& cmd_buffer)
+            const {
+        vkEndCommandBuffer(cmd_buffer);
         const VkSubmitInfo submit_info {
             VK_STRUCTURE_TYPE_SUBMIT_INFO,
             nullptr,
@@ -1408,7 +1607,6 @@ namespace Kumo {
         };
         vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
         vkQueueWaitIdle(m_graphics_queue);
-
         vkFreeCommandBuffers(m_device, m_cmd_pool, 1, &cmd_buffer);
     }
 
@@ -1461,8 +1659,8 @@ namespace Kumo {
 
     void Application::GLFWFramebufferResizeCallback(
         GLFWwindow* window,
-        int width,
-        int height
+        int,
+        int
     ) {
         Application* app = reinterpret_cast<Application*>(
             glfwGetWindowUserPointer(window)

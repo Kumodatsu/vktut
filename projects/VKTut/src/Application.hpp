@@ -84,6 +84,9 @@ namespace Kumo {
         std::vector<VkBuffer>
             m_uniform_buffers;
 
+        VkImage        m_texture_image;
+        VkDeviceMemory m_mem_texture_image;
+
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
         std::vector<VkSemaphore>
@@ -127,6 +130,12 @@ namespace Kumo {
         void RecreateSwapchain();
         void CleanupSwapchain();
 
+        void CreateTextureImage(const std::string& path);
+        void CreateImage(UInt32 width, UInt32 height, VkFormat format,
+            VkImageTiling tiling, VkImageUsageFlags usage,
+            VkMemoryPropertyFlags properties, VkImage& out_image,
+            VkDeviceMemory& out_memory) const;
+
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
         std::vector<const char*> GetRequiredExtensions() const;
@@ -149,11 +158,18 @@ namespace Kumo {
             const;
         UInt32 SelectMemoryType(UInt32 type_filter,
             VkMemoryPropertyFlags properties) const;
+        void TransitionImageLayout(VkImage image, VkFormat format,
+            VkImageLayout old_layout, VkImageLayout new_layout) const;
+        void CopyBufferToImage(const VkBuffer& buffer, const VkImage& image,
+            UInt32 width, UInt32 height) const;
+
         void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage_flags,
             VkMemoryPropertyFlags property_flags, VkBuffer& out_buffer,
             VkDeviceMemory& out_memory) const;
         void CopyBuffer(const VkBuffer& src, const VkBuffer& dst,
             VkDeviceSize size) const;
+        VkCommandBuffer BeginSingleTimeCommands() const;
+        void EndSingleTimeCommands(const VkCommandBuffer& cmd_buffer) const;
 
         void SetupDebugMessenger();
 
