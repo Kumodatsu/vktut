@@ -257,6 +257,7 @@ namespace Kumo {
         }
         m_mesh.Vertices.clear();
         m_mesh.Indices.clear();
+        std::unordered_map<Vertex, Mesh::Index> unique_vertices {};
         for (const auto& shape : shapes) {
             for (const auto& index : shape.mesh.indices) {
                 const Vertex vertex {
@@ -271,8 +272,12 @@ namespace Kumo {
                         1.0f - attributes.texcoords[2 * index.texcoord_index + 1]
                     }
                 };
-                m_mesh.Vertices.push_back(vertex);
-                m_mesh.Indices.push_back(m_mesh.Indices.size());
+                if (unique_vertices.count(vertex) == 0) {
+                    unique_vertices[vertex] =
+                        static_cast<Mesh::Index>(m_mesh.Vertices.size());
+                    m_mesh.Vertices.push_back(vertex);
+                }
+                m_mesh.Indices.push_back(unique_vertices[vertex]);
             }
         }
         std::reverse(m_mesh.Indices.begin(), m_mesh.Indices.end());
