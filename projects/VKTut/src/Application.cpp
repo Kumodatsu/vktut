@@ -82,10 +82,10 @@ namespace Kumo {
         CreateCommandPool();
         CreateDepthResources();
         CreateFramebuffers();
-        CreateTextureImage("res/textures/chalet.jpg");
+        CreateTextureImage("res/textures/blank.png");
         CreateTextureImageView();
         CreateTextureSampler();
-        LoadModel("res/models/chalet.obj");
+        LoadModel("res/models/3D_NECKLACE_BADGE.obj");
         CreateVertexBuffer();
         CreateIndexBuffer();
         CreateUniformBuffers();
