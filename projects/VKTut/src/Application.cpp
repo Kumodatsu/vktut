@@ -52,6 +52,10 @@ namespace Kumo {
     }
 
     void Application::InitializeVulkan() {
+        m_light = {
+            { 100.0f, 100.0f, 100.0f },
+            { 100.0f, 100.0f, 100.0f }
+        };
         KUMO_DEBUG_ONLY m_debug_messenger_create_info = {
             VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
             nullptr,

@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 
 #include "Mesh.hpp"
+#include "Light.hpp"
 
 namespace Kumo {
 
@@ -47,7 +48,8 @@ namespace Kumo {
         GLFWwindow* m_window              = nullptr;
         bool        m_framebuffer_resized = false;
 
-        Mesh m_mesh;
+        Mesh  m_mesh;
+        Light m_light;
 
         VkInstance       m_instance;
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
