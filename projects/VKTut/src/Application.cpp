@@ -231,7 +231,7 @@ namespace Kumo {
             glm::vec3(0.0f, 0.0f, 1.0f)
         );
         ubo.View = glm::lookAt(
-            glm::vec3(2.0f, 2.0f, 2.0f),
+            glm::vec3(100.0f, 100.0f, 100.0f),
             glm::vec3(0.0f, 0.0f, 0.0f),
             glm::vec3(0.0f, 0.0f, 1.0f)
         );
@@ -240,7 +240,7 @@ namespace Kumo {
             m_swapchain_extent.width
                 / static_cast<float>(m_swapchain_extent.height),
             0.1f,
-            10.0f
+            1000.0f
         );
         ubo.Projection[1][1] *= -1.0f;
         void* data;
