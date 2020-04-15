@@ -252,7 +252,7 @@ namespace Kumo {
         std::vector<tinyobj::material_t> materials;
         std::string warning, error;
         if (!tinyobj::LoadObj(&attributes, &shapes, &materials, &warning,
-                &error, path.c_str())) {
+                &error, IO::VFS::GetPath(path).c_str())) {
             throw std::runtime_error(warning + error);
         }
         m_mesh.Vertices.clear();
@@ -927,11 +927,11 @@ namespace Kumo {
     }
 
     void Application::CreateTextureImage(const std::string& path) {
-        const char* used_path = path.c_str();
-        if (!std::filesystem::exists(path)) {
+        const char* used_path = IO::VFS::GetPath(path).c_str();
+        if (!std::filesystem::exists(used_path)) {
             std::cout << "Warning: texture " << path << " doesn't exist. "
                 << "Using default texture." << std::endl;
-            used_path = "res/textures/missingno.png";
+            used_path = IO::VFS::GetPath("res/textures/missingno.png").c_str();
         }
 
         int width, height, n_channels;
