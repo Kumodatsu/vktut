@@ -4,6 +4,7 @@
 #include "Vertex.hpp"
 
 #include "STB/stb_image.h"
+#include "tinyobj/tiny_obj_loader.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -15,23 +16,6 @@ namespace Kumo {
 
     static const std::vector<const char*> DeviceExtensions {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
-    };
-
-    static const std::vector<Vertex> Vertices {
-        {{-0.5f, -0.5f,  0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{ 0.5f,  0.5f,  0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f,  0.5f,  0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
-
-        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
-    };
-
-    static const std::vector<UInt16> Indices {
-        2, 1, 0, 0, 3, 2,
-        6, 5, 4, 4, 7, 6
     };
 
     Application::~Application() {
@@ -94,9 +78,10 @@ namespace Kumo {
         CreateCommandPool();
         CreateDepthResources();
         CreateFramebuffers();
-        CreateTextureImage("res/textures/bricks.png");
+        CreateTextureImage("res/textures/chalet.jpg");
         CreateTextureImageView();
         CreateTextureSampler();
+        LoadModel("res/models/chalet.obj");
         CreateVertexBuffer();
         CreateIndexBuffer();
         CreateUniformBuffers();
@@ -259,6 +244,38 @@ namespace Kumo {
             sizeof(UniformBufferObject), 0, &data);
         memcpy(data, &ubo, sizeof(UniformBufferObject));
         vkUnmapMemory(m_device, m_mems_uniform_buffers[current_image]);
+    }
+
+    void Application::LoadModel(const std::string& path) {
+        tinyobj::attrib_t                attributes;
+        std::vector<tinyobj::shape_t>    shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string warning, error;
+        if (!tinyobj::LoadObj(&attributes, &shapes, &materials, &warning,
+                &error, path.c_str())) {
+            throw std::runtime_error(warning + error);
+        }
+        m_mesh.Vertices.clear();
+        m_mesh.Indices.clear();
+        for (const auto& shape : shapes) {
+            for (const auto& index : shape.mesh.indices) {
+                const Vertex vertex {
+                    {
+                        attributes.vertices[3 * index.vertex_index + 0],
+                        attributes.vertices[3 * index.vertex_index + 1],
+                        attributes.vertices[3 * index.vertex_index + 2]
+                    },
+                    { 1.0f, 1.0f, 1.0f },
+                    {
+                        attributes.texcoords[2 * index.texcoord_index + 0],
+                        1.0f - attributes.texcoords[2 * index.texcoord_index + 1]
+                    }
+                };
+                m_mesh.Vertices.push_back(vertex);
+                m_mesh.Indices.push_back(m_mesh.Indices.size());
+            }
+        }
+        std::reverse(m_mesh.Indices.begin(), m_mesh.Indices.end());
     }
 
     void Application::CreateInstance() {
@@ -1021,7 +1038,8 @@ namespace Kumo {
     }
 
     void Application::CreateVertexBuffer() {
-        const VkDeviceSize buffer_size = sizeof(Vertex) * Vertices.size();
+        const VkDeviceSize buffer_size =
+            sizeof(Vertex) * m_mesh.Vertices.size();
 
         VkBuffer       staging_buffer;
         VkDeviceMemory mem_staging_buffer;
@@ -1037,7 +1055,7 @@ namespace Kumo {
         void* data;
         vkMapMemory(m_device, mem_staging_buffer, 0, buffer_size, 0,
             &data);
-        memcpy(data, Vertices.data(), static_cast<USize>(buffer_size));
+        memcpy(data, m_mesh.Vertices.data(), static_cast<USize>(buffer_size));
         vkUnmapMemory(m_device, mem_staging_buffer);
 
         CreateBuffer(
@@ -1055,7 +1073,8 @@ namespace Kumo {
     }
 
     void Application::CreateIndexBuffer() {
-        const VkDeviceSize buffer_size = sizeof(UInt16) * Indices.size();
+        const VkDeviceSize buffer_size =
+            sizeof(Mesh::Index) * m_mesh.Indices.size();
 
         VkBuffer       staging_buffer;
         VkDeviceMemory mem_staging_buffer;
@@ -1071,7 +1090,7 @@ namespace Kumo {
         void* data;
         vkMapMemory(m_device, mem_staging_buffer, 0, buffer_size, 0,
             &data);
-        memcpy(data, Indices.data(), static_cast<USize>(buffer_size));
+        memcpy(data, m_mesh.Indices.data(), static_cast<USize>(buffer_size));
         vkUnmapMemory(m_device, mem_staging_buffer);
 
         CreateBuffer(
@@ -1246,7 +1265,7 @@ namespace Kumo {
                 vkCmdBindVertexBuffers(buffer, 0, 1,  &m_vertex_buffer,
                     &offset);
                 vkCmdBindIndexBuffer(buffer, m_index_buffer, 0,
-                    VK_INDEX_TYPE_UINT16);
+                    Mesh::IndexType);
                 vkCmdBindDescriptorSets(
                     buffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1257,8 +1276,14 @@ namespace Kumo {
                     0,
                     nullptr
                 );
-                vkCmdDrawIndexed(buffer, static_cast<UInt32>(Indices.size()),
-                    1, 0, 0, 0);
+                vkCmdDrawIndexed(
+                    buffer,
+                    static_cast<Mesh::Index>(m_mesh.Indices.size()),
+                    1,
+                    0,
+                    0,
+                    0
+                );
             }
             vkCmdEndRenderPass(buffer);
             if (vkEndCommandBuffer(buffer) != VK_SUCCESS) {

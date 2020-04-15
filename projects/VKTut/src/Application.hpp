@@ -4,6 +4,8 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
+#include "Mesh.hpp"
+
 namespace Kumo {
 
     struct QueueFamilyIndices {
@@ -44,6 +46,8 @@ namespace Kumo {
 
         GLFWwindow* m_window              = nullptr;
         bool        m_framebuffer_resized = false;
+
+        Mesh m_mesh;
 
         VkInstance       m_instance;
         VkPhysicalDevice m_physical_device; // implicitly destroyed with instance
@@ -113,6 +117,8 @@ namespace Kumo {
 
         void DrawFrame();
         void UpdateUniformBuffer(UInt32 current_image);
+
+        void LoadModel(const std::string& path);
 
         void CreateInstance();
         void CreateSurface();
