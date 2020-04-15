@@ -89,6 +89,10 @@ namespace Kumo {
         VkImageView    m_texture_image_view;
         VkSampler      m_texture_sampler;
 
+        VkImage        m_depth_image;
+        VkDeviceMemory m_mem_depth_image;
+        VkImageView    m_depth_image_view;
+
         std::vector<VkCommandBuffer> m_cmd_buffers; // implicitly destroyed with command pool
 
         std::vector<VkSemaphore>
@@ -132,6 +136,7 @@ namespace Kumo {
         void RecreateSwapchain();
         void CleanupSwapchain();
 
+        void CreateDepthResources();
         void CreateTextureImageView();
         void CreateTextureImage(const std::string& path);
         void CreateImage(UInt32 width, UInt32 height, VkFormat format,
@@ -139,6 +144,14 @@ namespace Kumo {
             VkMemoryPropertyFlags properties, VkImage& out_image,
             VkDeviceMemory& out_memory) const;
         void CreateTextureSampler();
+
+        VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates,
+            VkImageTiling tiling, VkFormatFeatureFlags features) const;
+        VkFormat FindDepthFormat() const;
+        inline static bool HasStencilComponent(VkFormat format) {
+            return format == VK_FORMAT_D32_SFLOAT_S8_UINT
+                || format == VK_FORMAT_D24_UNORM_S8_UINT;
+        }
 
         bool AreLayersSupported(
             const std::vector<const char*>& layers) const;
@@ -162,6 +175,8 @@ namespace Kumo {
             const;
         UInt32 SelectMemoryType(UInt32 type_filter,
             VkMemoryPropertyFlags properties) const;
+        VkImageView CreateImageView(VkImage image, VkFormat format,
+            VkImageAspectFlags aspects) const;
         void TransitionImageLayout(VkImage image, VkFormat format,
             VkImageLayout old_layout, VkImageLayout new_layout) const;
         void CopyBufferToImage(const VkBuffer& buffer, const VkImage& image,

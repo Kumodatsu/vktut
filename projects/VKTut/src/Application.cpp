@@ -18,15 +18,20 @@ namespace Kumo {
     };
 
     static const std::vector<Vertex> Vertices {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+        {{-0.5f, -0.5f,  0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+
+        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
     };
 
     static const std::vector<UInt16> Indices {
-        // 0, 1, 2, 2, 3, 0
-        2, 1, 0, 0, 3, 2
+        2, 1, 0, 0, 3, 2,
+        6, 5, 4, 4, 7, 6
     };
 
     Application::~Application() {
@@ -86,9 +91,10 @@ namespace Kumo {
         CreateRenderPass();
         CreateDescriptorSetLayout();
         CreateGraphicsPipeline();
-        CreateFramebuffers();
         CreateCommandPool();
-        CreateTextureImage("res/textures/bricks.png");
+        CreateDepthResources();
+        CreateFramebuffers();
+        CreateTextureImage("res/textures/bricks.pngg");
         CreateTextureImageView();
         CreateTextureSampler();
         CreateVertexBuffer();
@@ -517,33 +523,11 @@ namespace Kumo {
     void Application::CreateSwapchainImageViews() {
         m_swapchain_image_views.resize(m_swapchain_images.size());
         for (size_t i = 0; i < m_swapchain_images.size(); i++) {
-            static constexpr VkComponentMapping def_component_mapping{
-                VK_COMPONENT_SWIZZLE_IDENTITY,
-                VK_COMPONENT_SWIZZLE_IDENTITY,
-                VK_COMPONENT_SWIZZLE_IDENTITY,
-                VK_COMPONENT_SWIZZLE_IDENTITY
-            };
-            static constexpr VkImageSubresourceRange def_subresource_range {
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                0,
-                1,
-                0,
-                1
-            };
-            const VkImageViewCreateInfo create_info {
-                VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                nullptr,
-                0,
+            m_swapchain_image_views[i] = CreateImageView(
                 m_swapchain_images[i],
-                VK_IMAGE_VIEW_TYPE_2D,
                 m_swapchain_image_format,
-                def_component_mapping,
-                def_subresource_range
-            };
-            if (vkCreateImageView(m_device, &create_info, nullptr,
-                    &m_swapchain_image_views[i]) != VK_SUCCESS) {
-                throw std::runtime_error("Failed to create image views.");
-            }
+                VK_IMAGE_ASPECT_COLOR_BIT
+            );
         }
     }
 
@@ -559,9 +543,24 @@ namespace Kumo {
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
         };
+        const VkAttachmentDescription depth_attachment_desc {
+            0,
+            FindDepthFormat(),
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_ATTACHMENT_LOAD_OP_CLEAR,
+            VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        };
         const VkAttachmentReference color_attachment_ref {
             0,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        };
+        const VkAttachmentReference depth_attachment_ref {
+            1,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         };
         const VkSubpassDescription subpass_desc {
             0,
@@ -571,7 +570,7 @@ namespace Kumo {
             1,
             &color_attachment_ref, // layout(location = 0) in frag shader
             nullptr,
-            nullptr,
+            &depth_attachment_ref,
             0,
             nullptr
         };
@@ -584,12 +583,16 @@ namespace Kumo {
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             0
         };
+        const std::array<VkAttachmentDescription, 2> attachments {{
+            color_attachment_desc,
+            depth_attachment_desc
+        }};
         const VkRenderPassCreateInfo render_pass_info {
             VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             nullptr,
             0,
-            1,
-            &color_attachment_desc,
+            static_cast<UInt32>(attachments.size()),
+            attachments.data(),
             1,
             &subpass_desc,
             1,
@@ -792,6 +795,21 @@ namespace Kumo {
             throw std::runtime_error("Failed to create pipeline layout.");
         }
 
+        const VkPipelineDepthStencilStateCreateInfo depth_stencil_info {
+            VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+            nullptr,
+            0,
+            VK_TRUE,
+            VK_TRUE,
+            VK_COMPARE_OP_LESS,
+            VK_FALSE,
+            VK_FALSE,
+            {},
+            {},
+            0.0f,
+            1.0f
+        };
+
         const VkGraphicsPipelineCreateInfo pipeline_info {
             VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             nullptr,
@@ -804,7 +822,7 @@ namespace Kumo {
             &viewport_state_info,
             &rasterization_info,
             &multisample_info,
-            nullptr,
+            &depth_stencil_info,
             &color_blend_info,
             nullptr, // dynamic state
             m_pipeline_layout,
@@ -826,13 +844,17 @@ namespace Kumo {
     void Application::CreateFramebuffers() {
         m_swapchain_framebuffers.resize(m_swapchain_image_views.size());
         for (size_t i = 0; i < m_swapchain_image_views.size(); i++) {
+            const std::array<VkImageView, 2> attachments {{
+                m_swapchain_image_views[i],
+                m_depth_image_view
+            }};
             const VkFramebufferCreateInfo framebuffer_info {
                 VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
                 nullptr,
                 0,
                 m_render_pass,
-                1,
-                &m_swapchain_image_views[i],
+                static_cast<UInt32>(attachments.size()),
+                attachments.data(),
                 m_swapchain_extent.width,
                 m_swapchain_extent.height,
                 1
@@ -857,9 +879,41 @@ namespace Kumo {
         }
     }
 
+    void Application::CreateDepthResources() {
+        const VkFormat depth_format = FindDepthFormat();
+        CreateImage(
+            m_swapchain_extent.width,
+            m_swapchain_extent.height,
+            depth_format,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            m_depth_image,
+            m_mem_depth_image
+        );
+        m_depth_image_view = CreateImageView(
+            m_depth_image,
+            depth_format,
+            VK_IMAGE_ASPECT_DEPTH_BIT
+        );
+        TransitionImageLayout(
+            m_depth_image,
+            depth_format,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        );
+    }
+
     void Application::CreateTextureImage(const std::string& path) {
+        const char* used_path = path.c_str();
+        if (!std::filesystem::exists(path)) {
+            std::cout << "Warning: texture " << path << " doesn't exist. "
+                << "Using default texture." << std::endl;
+            used_path = "res/textures/missingno.png";
+        }
+
         int width, height, n_channels;
-        stbi_uc* pixels = stbi_load(path.c_str(), &width, &height, &n_channels,
+        stbi_uc* pixels = stbi_load(used_path, &width, &height, &n_channels,
             STBI_rgb_alpha);
         if (!pixels) {
             throw std::runtime_error("Failed to load texture image.");
@@ -917,33 +971,11 @@ namespace Kumo {
     }
 
     void Application::CreateTextureImageView() {
-        static constexpr VkComponentMapping def_component_mapping{
-            VK_COMPONENT_SWIZZLE_IDENTITY,
-            VK_COMPONENT_SWIZZLE_IDENTITY,
-            VK_COMPONENT_SWIZZLE_IDENTITY,
-            VK_COMPONENT_SWIZZLE_IDENTITY
-        };
-        static constexpr VkImageSubresourceRange def_subresource_range {
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            0,
-            1,
-            0,
-            1
-        };
-        const VkImageViewCreateInfo view_info {
-            VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            nullptr,
-            0,
+        m_texture_image_view = CreateImageView(
             m_texture_image,
-            VK_IMAGE_VIEW_TYPE_2D,
             VK_FORMAT_R8G8B8A8_SRGB,
-            def_component_mapping,
-            def_subresource_range
-        };
-        if (vkCreateImageView(m_device, &view_info, nullptr,
-                &m_texture_image_view) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create texture image view.");
-        }
+            VK_IMAGE_ASPECT_COLOR_BIT
+        );
     }
 
     void Application::CreateImage(UInt32 width, UInt32 height, VkFormat format,
@@ -1188,15 +1220,20 @@ namespace Kumo {
                     "Failed to begin recording command buffer."
                 );
             }
-            const VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+            // /!\ Caution: weird union stuff going on
+            // Order of clear values must be same as order of attachments
+            const std::array<VkClearValue, 2> clear_values {{
+                { 0.0f, 0.0f, 0.0f, 1.0f },
+                { 1.0f, 0U }
+            }};
             const VkRenderPassBeginInfo render_pass_info {
                 VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
                 nullptr,
                 m_render_pass,
                 m_swapchain_framebuffers[i],
                 {{0, 0}, {m_swapchain_extent}},
-                1,
-                &clear_color
+                static_cast<UInt32>(clear_values.size()),
+                clear_values.data()
             };
             vkCmdBeginRenderPass(buffer, &render_pass_info,
                     VK_SUBPASS_CONTENTS_INLINE); {
@@ -1274,6 +1311,7 @@ namespace Kumo {
         CreateSwapchainImageViews();
         CreateRenderPass();
         CreateGraphicsPipeline();
+        CreateDepthResources();
         CreateFramebuffers();
         CreateUniformBuffers();
         CreateDescriptorPool();
@@ -1282,6 +1320,9 @@ namespace Kumo {
     }
 
     void Application::CleanupSwapchain() {
+        vkDestroyImageView(m_device, m_depth_image_view, nullptr);
+        vkDestroyImage(m_device, m_depth_image, nullptr);
+        vkFreeMemory(m_device, m_mem_depth_image, nullptr);
         for (const auto& framebuffer : m_swapchain_framebuffers) {
             vkDestroyFramebuffer(m_device, framebuffer, nullptr);
         }
@@ -1330,6 +1371,37 @@ namespace Kumo {
                 &m_texture_sampler) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create texture sampler.");
         }
+    }
+
+    VkFormat Application::FindSupportedFormat(
+        const std::vector<VkFormat>& candidates,
+        VkImageTiling tiling,
+        VkFormatFeatureFlags features
+    ) const {
+        for (const VkFormat& format : candidates) {
+            VkFormatProperties properties;
+            vkGetPhysicalDeviceFormatProperties(m_physical_device, format,
+                &properties);
+            const VkFormatFeatureFlags flags
+                = tiling == VK_IMAGE_TILING_LINEAR  ? properties.linearTilingFeatures
+                : tiling == VK_IMAGE_TILING_OPTIMAL ? properties.optimalTilingFeatures
+                : throw std::invalid_argument("Invalid tiling.");
+            if ((flags & features) == features)
+                return format;
+        }
+        throw std::runtime_error("Failed to find supported format.");
+    }
+
+    VkFormat Application::FindDepthFormat() const {
+        return FindSupportedFormat(
+            {
+                VK_FORMAT_D32_SFLOAT,
+                VK_FORMAT_D32_SFLOAT_S8_UINT,
+                VK_FORMAT_D24_UNORM_S8_UINT
+            },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        );
     }
 
     bool Application::AreLayersSupported(
@@ -1539,10 +1611,44 @@ namespace Kumo {
         throw std::runtime_error("Failed to find suitable memory type.");
     }
 
+    VkImageView Application::CreateImageView(VkImage image, VkFormat format,
+            VkImageAspectFlags aspects) const {
+        static constexpr VkComponentMapping def_component_mapping{
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY
+        };
+        const VkImageSubresourceRange def_subresource_range {
+            aspects,
+            0,
+            1,
+            0,
+            1
+        };
+        const VkImageViewCreateInfo view_info {
+            VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            nullptr,
+            0,
+            image,
+            VK_IMAGE_VIEW_TYPE_2D,
+            format,
+            def_component_mapping,
+            def_subresource_range
+        };
+        VkImageView image_view;
+        if (vkCreateImageView(m_device, &view_info, nullptr,
+                &image_view) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create texture image view.");
+        }
+        return image_view;
+    }
+
     void Application::TransitionImageLayout(VkImage image, VkFormat format,
             VkImageLayout old_layout, VkImageLayout new_layout) const {
         VkAccessFlags src_access_mask, dst_access_mask;
         VkPipelineStageFlags src_stage, dst_stage;
+        VkImageAspectFlags aspects = 0;
 
         if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED
                 && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
@@ -1556,8 +1662,23 @@ namespace Kumo {
             dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
             src_stage       = VK_PIPELINE_STAGE_TRANSFER_BIT;
             dst_stage       = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        } else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED
+                && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+            src_access_mask = 0;
+            dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+                | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            src_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            dst_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         } else {
             throw std::invalid_argument("Unsupported layout transition.");
+        }
+
+        if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+            aspects |= VK_IMAGE_ASPECT_DEPTH_BIT;
+            if (HasStencilComponent(format))
+                aspects |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        } else {
+            aspects |= VK_IMAGE_ASPECT_COLOR_BIT;
         }
 
         const VkImageMemoryBarrier barrier {
@@ -1571,7 +1692,7 @@ namespace Kumo {
             VK_QUEUE_FAMILY_IGNORED,
             image,
             {
-                VK_IMAGE_ASPECT_COLOR_BIT,
+                aspects,
                 0,
                 1,
                 0,
