@@ -262,6 +262,7 @@ namespace Kumo {
         m_mesh.Vertices.clear();
         m_mesh.Indices.clear();
         std::unordered_map<Vertex, Mesh::Index> unique_vertices {};
+        const bool use_texcoords = attributes.texcoords.size() != 0;
         for (const auto& shape : shapes) {
             for (const auto& index : shape.mesh.indices) {
                 const Vertex vertex {
@@ -271,10 +272,10 @@ namespace Kumo {
                         attributes.vertices[3 * index.vertex_index + 2]
                     },
                     { 1.0f, 1.0f, 1.0f },
-                    {
+                    use_texcoords ? glm::vec2 {
                         attributes.texcoords[2 * index.texcoord_index + 0],
                         1.0f - attributes.texcoords[2 * index.texcoord_index + 1]
-                    }
+                    } : glm::vec2 { 0.0f, 0.0f }
                 };
                 if (unique_vertices.count(vertex) == 0) {
                     unique_vertices[vertex] =
