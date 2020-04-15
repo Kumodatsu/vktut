@@ -1,5 +1,6 @@
 *.sln
 *.vcxproj
+*.vcxproj.filters
 Makefile
 *.spv
 .vscode/
