@@ -94,7 +94,7 @@ namespace Kumo {
         CreateCommandPool();
         CreateDepthResources();
         CreateFramebuffers();
-        CreateTextureImage("res/textures/bricks.pngg");
+        CreateTextureImage("res/textures/bricks.png");
         CreateTextureImageView();
         CreateTextureSampler();
         CreateVertexBuffer();
