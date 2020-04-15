@@ -29,6 +29,8 @@ namespace Kumo {
         glm::mat4 Model;
         glm::mat4 View;
         glm::mat4 Projection;
+        glm::vec4 LightPosition;
+        glm::vec4 LightColor;
     };
 
     class Application {

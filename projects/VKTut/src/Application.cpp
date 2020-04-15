@@ -53,8 +53,8 @@ namespace Kumo {
 
     void Application::InitializeVulkan() {
         m_light = {
-            { 100.0f, 100.0f, 100.0f },
-            { 100.0f, 100.0f, 100.0f }
+            { 0.0f, 10.0f, 0.0f },
+            { 50.0f, 50.0f, 50.0f }
         };
         KUMO_DEBUG_ONLY m_debug_messenger_create_info = {
             VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -229,6 +229,10 @@ namespace Kumo {
             glm::mat4(1.0f),
             dt * glm::radians(90.0f),
             glm::vec3(0.0f, 0.0f, 1.0f)
+        ) * glm::rotate(
+            glm::mat4(1.0f),
+            glm::radians(90.0f),
+            glm::vec3(1.0f, 0.0f, 0.0f)
         );
         ubo.View = glm::lookAt(
             glm::vec3(100.0f, 100.0f, 100.0f),
@@ -243,6 +247,18 @@ namespace Kumo {
             1000.0f
         );
         ubo.Projection[1][1] *= -1.0f;
+        ubo.LightPosition = {
+            m_light.Position.x,
+            m_light.Position.y,
+            m_light.Position.z,
+            1.0f
+        };
+        ubo.LightColor = {
+            m_light.Color.r,
+            m_light.Color.g,
+            m_light.Color.b,
+            1.0f
+        };
         void* data;
         vkMapMemory(m_device, m_mems_uniform_buffers[current_image], 0,
             sizeof(UniformBufferObject), 0, &data);
